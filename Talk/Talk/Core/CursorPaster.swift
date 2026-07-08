@@ -38,7 +38,7 @@ class CursorPaster {
         usleep(100000)  // 100ms
 
         // Simulate Cmd+V
-        simulatePaste()
+        pasteViaCmdV()
 
         // Restore original clipboard after a longer delay
         if preserveClipboard && !savedItems.isEmpty {
@@ -74,7 +74,8 @@ class CursorPaster {
 
     // MARK: - Keyboard Simulation
 
-    private static func simulatePaste() {
+    /// Simulate ⌘V into the frontmost application. Requires Accessibility.
+    static func pasteViaCmdV() {
         guard AXIsProcessTrusted() else {
             print("Accessibility permission not granted - cannot simulate paste")
             return
