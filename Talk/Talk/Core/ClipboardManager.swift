@@ -115,8 +115,27 @@ final class ClipboardManager: ObservableObject {
         return .other(reps.first?.type.rawValue ?? "unknown")
     }
 
-    // MARK: - Recall (implemented in Task 5)
+    // MARK: - Recall
 
-    func showPicker() { /* wired in Task 5 */ }
-    func paste(_ item: ClipboardItem) { /* wired in Task 5 */ }
+    func showPicker() {
+        targetApp = NSWorkspace.shared.frontmostApplication
+        ClipboardHistoryPanel.shared.toggle(items: items) { [weak self] item in
+            self?.paste(item)
+        }
+    }
+
+    func paste(_ item: ClipboardItem) {
+        let pb = NSPasteboard.general
+        ignoreNextChange()
+        pb.clearContents()
+        let pbItem = NSPasteboardItem()
+        for rep in item.representations {
+            pbItem.setData(rep.data, forType: rep.type)
+        }
+        pb.writeObjects([pbItem])
+        // Small delay so the pasteboard is ready before the synthetic ⌘V.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            CursorPaster.pasteViaCmdV()
+        }
+    }
 }
