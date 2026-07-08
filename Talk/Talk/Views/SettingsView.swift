@@ -39,6 +39,11 @@ struct SettingsView: View {
                     Label("Meeting", systemImage: "person.2.wave.2")
                 }
 
+            ClipboardSettingsTab()
+                .tabItem {
+                    Label("Clipboard", systemImage: "doc.on.clipboard")
+                }
+
             PermissionsSettingsTab()
                 .tabItem {
                     Label("Permissions", systemImage: "lock.shield")
@@ -754,6 +759,41 @@ struct AutocompleteSettingsTab: View {
                             .foregroundStyle(.red)
                     }
                 }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+}
+
+// MARK: - Clipboard Settings
+
+struct ClipboardSettingsTab: View {
+    @ObservedObject private var clipboard = ClipboardManager.shared
+
+    var body: some View {
+        Form {
+            Section("Clipboard History") {
+                Toggle("Enable clipboard history", isOn: Binding(
+                    get: { clipboard.enabled },
+                    set: { newValue in
+                        clipboard.enabled = newValue
+                        if newValue { clipboard.start() } else { clipboard.stop() }
+                    }
+                ))
+                LabeledContent("Recall shortcut", value: "⌘⌥V")
+                Text("Keeps the last 20 clipboard items in memory. Press ⌘⌥V to open the picker.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Button("Clear History") {
+                    clipboard.clear()
+                }
+                Text("\(clipboard.items.count) item(s) stored.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

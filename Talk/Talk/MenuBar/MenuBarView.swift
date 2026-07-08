@@ -35,6 +35,12 @@ struct MenuBarView: View {
 
             // Actions
             actionsSection
+
+            Divider()
+                .padding(.vertical, 8)
+
+            // Clipboard History
+            clipboardSection
         }
         .padding(12)
         .frame(width: 280)
@@ -307,6 +313,26 @@ struct MenuBarView: View {
             }
             .buttonStyle(.plain)
             .keyboardShortcut("q", modifiers: .command)
+        }
+    }
+
+    // MARK: - Clipboard History
+
+    private var clipboardSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                ClipboardManager.shared.showPicker()
+            } label: {
+                Label("Clipboard History  ⌘⌥V", systemImage: "doc.on.clipboard")
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                ClipboardManager.shared.clear()
+            } label: {
+                Label("Clear Clipboard History", systemImage: "trash")
+            }
+            .buttonStyle(.plain)
         }
     }
 }
