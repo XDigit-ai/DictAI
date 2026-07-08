@@ -28,6 +28,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup hotkey manager
         HotkeyManager.shared.setup()
 
+        // Clipboard history: start capture and connect the recall hotkey.
+        ClipboardManager.shared.start()
+        HotkeyManager.shared.onClipboardRecall = {
+            ClipboardManager.shared.showPicker()
+        }
+
         // Check permissions on launch
         PermissionManager.shared.checkAllPermissions()
 
@@ -56,6 +62,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Cleanup
         HotkeyManager.shared.cleanup()
+        ClipboardManager.shared.stop()
         // MeetingState handles its own termination via NotificationCenter
     }
 

@@ -45,7 +45,10 @@ final class ClipboardHistoryPanel {
         )
         panel.contentView = NSHostingView(rootView: root)
         panel.center()
-        panel.orderFrontRegardless()
+        // .nonactivatingPanel lets this become key (so the local keyDown monitor
+        // receives arrow/Enter/1-9/Esc) WITHOUT activating DictAI, so the
+        // previously-frontmost app stays frontmost for the later synthetic ⌘V.
+        panel.makeKeyAndOrderFront(nil)
 
         installKeyMonitor()
         self.panel = panel
