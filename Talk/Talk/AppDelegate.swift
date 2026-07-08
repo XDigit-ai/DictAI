@@ -12,6 +12,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var meetingsListWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // This app is the host for the unit-test bundle. When running under XCTest,
+        // skip the full bootstrap: booting whisper/Metal here triggers a ggml teardown
+        // abort at test-process exit (ggml_metal_rsets_free -> ggml_abort), and none of
+        // the app services are needed for the logic tests.
+        if NSClassFromString("XCTestCase") != nil
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return
+        }
+
         AppDelegate.shared = self
         // Set dock icon visibility based on user preference
         AppState.shared.updateDockIconVisibility()
