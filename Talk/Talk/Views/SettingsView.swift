@@ -29,12 +29,22 @@ struct SettingsView: View {
                     Label("Agent", systemImage: "brain")
                 }
 
+            AutocompleteSettingsTab()
+                .tabItem {
+                    Label("Autocomplete", systemImage: "text.append")
+                }
+
+            MeetingSettingsTab()
+                .tabItem {
+                    Label("Meeting", systemImage: "person.2.wave.2")
+                }
+
             PermissionsSettingsTab()
                 .tabItem {
                     Label("Permissions", systemImage: "lock.shield")
                 }
         }
-        .frame(width: 520, height: 450)
+        .frame(width: 520, height: 480)
     }
 }
 
@@ -622,6 +632,127 @@ struct PermissionsSettingsTab: View {
             Section {
                 Button("Refresh Permissions") {
                     permissionManager.checkAllPermissions()
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+}
+
+// MARK: - Autocomplete Settings
+
+struct AutocompleteSettingsTab: View {
+    @ObservedObject private var state = AutocompleteState.shared
+    @ObservedObject private var ollama = OllamaService.shared
+    @ObservedObject private var permissions = PermissionManager.shared
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Enable inline autocomplete", isOn: $state.enabled)
+                Text("When enabled, DictAI watches the focused text field across all apps and shows a ghost-text suggestion you can accept with Tab or dismiss with Escape. Requires Accessibility permission and a running Ollama model.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if state.enabled {
+                Section("Screen context (OCR)") {
+                    Toggle("Use surrounding screen text as context", isOn: $state.useOCR)
+                    Text("When typing a reply, DictAI captures the focused window and OCRs visible text so the model can see what you're responding to (e.g., the original email). Requires Screen Recording permission. Adds ~100-200ms latency per request.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if state.useOCR {
+                        HStack {
+                            Text("Screen Recording:")
+                            Spacer()
+                            Text(permissions.screenRecordingStatusText)
+                                .foregroundStyle(permissions.screenRecordingEnabled ? .green : .orange)
+                        }
+                        if !permissions.screenRecordingEnabled {
+                            Button("Grant Screen Recording Permission") {
+                                permissions.requestScreenRecordingPermission()
+                            }
+                        }
+                        Stepper(value: $state.ocrMaxChars, in: 200...4000, step: 100) {
+                            HStack {
+                                Text("Max context characters")
+                                Spacer()
+                                Text("\(state.ocrMaxChars)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if state.enabled {
+                Section("Model") {
+                    Picker("Use model", selection: $state.modelOverride) {
+                        Text("Default (\(ollama.selectedModel))").tag("")
+                        ForEach(ollama.availableModels, id: \.self) { model in
+                            Text(model).tag(model)
+                        }
+                    }
+                    Text("Smaller models (qwen2.5:1.5b, gemma2:2b) give the lowest latency for inline completions.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Behavior") {
+                    Stepper(value: $state.idleDelayMs, in: 100...1500, step: 50) {
+                        HStack {
+                            Text("Idle delay")
+                            Spacer()
+                            Text("\(state.idleDelayMs) ms")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Stepper(value: $state.maxChars, in: 20...200, step: 10) {
+                        HStack {
+                            Text("Max suggestion length")
+                            Spacer()
+                            Text("\(state.maxChars) chars")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Stepper(value: $state.contextChars, in: 100...2000, step: 100) {
+                        HStack {
+                            Text("Context window")
+                            Spacer()
+                            Text("\(state.contextChars) chars")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Section("Blocked apps") {
+                    Text("Bundle IDs (comma-separated). Autocomplete will be disabled in these apps.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextEditor(text: $state.blocklistCSV)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 60)
+                }
+
+                if state.isFetching {
+                    Section {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text("Generating suggestion…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if let err = state.lastError {
+                    Section {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
         }

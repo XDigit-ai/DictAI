@@ -97,6 +97,27 @@ class WhisperState: ObservableObject {
         return await context.getTranscription()
     }
 
+    // MARK: - Meeting Transcription
+
+    func transcribeMeetingChunk(samples: [Float]) async throws -> String {
+        guard let context = whisperContext else {
+            throw WhisperError.modelNotLoaded
+        }
+
+        // Validate samples before passing to whisper.cpp
+        guard !samples.isEmpty else { return "" }
+        guard !samples.contains(where: { $0.isNaN || $0.isInfinite }) else {
+            throw WhisperError.transcriptionFailed
+        }
+
+        guard await context.transcribeMeeting(samples: samples) else {
+            throw WhisperError.transcriptionFailed
+        }
+
+        let segments = await context.getSegmentedTranscription()
+        return segments.map(\.text).joined(separator: " ")
+    }
+
     func unloadModel() {
         whisperContext = nil
         isModelLoaded = false

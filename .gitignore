@@ -54,3 +54,4 @@ vendor/
 # Frameworks (if building locally)
 # Uncomment if you want to exclude the pre-built framework
 # Frameworks/
+.superpowers/
