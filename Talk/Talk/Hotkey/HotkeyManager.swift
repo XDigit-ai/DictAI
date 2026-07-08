@@ -106,7 +106,7 @@ class HotkeyManager: ObservableObject {
             eventKind: UInt32(kEventHotKeyPressed)
         )
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(
+        let installStatus = InstallEventHandler(
             GetApplicationEventTarget(),
             { _, event, userData in
                 guard let userData else { return noErr }
@@ -119,11 +119,14 @@ class HotkeyManager: ObservableObject {
             selfPtr,
             &clipboardEventHandler
         )
+        if installStatus != noErr {
+            NSLog("[HotkeyManager] InstallEventHandler for clipboard-recall hotkey failed: OSStatus=\(installStatus)")
+        }
 
         let hotKeyID = EventHotKeyID(signature: OSType(0x44494354 /* 'DICT' */), id: 1)
         let kVK_ANSI_V: UInt32 = 0x09
         let modifiers = UInt32(cmdKey | optionKey)
-        RegisterEventHotKey(
+        let registerStatus = RegisterEventHotKey(
             kVK_ANSI_V,
             modifiers,
             hotKeyID,
@@ -131,6 +134,9 @@ class HotkeyManager: ObservableObject {
             0,
             &clipboardHotKeyRef
         )
+        if registerStatus != noErr {
+            NSLog("[HotkeyManager] RegisterEventHotKey for ⌘⌥V (clipboard recall) failed: OSStatus=\(registerStatus). The combo may already be claimed by another app.")
+        }
     }
 
     private func unregisterClipboardHotkey() {

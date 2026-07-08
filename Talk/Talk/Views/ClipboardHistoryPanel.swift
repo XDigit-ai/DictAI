@@ -4,7 +4,7 @@ import SwiftUI
 /// Floating, non-activating picker for clipboard history.
 /// Non-activating so the previously focused app stays frontmost and receives the paste.
 @MainActor
-final class ClipboardHistoryPanel {
+final class ClipboardHistoryPanel: NSObject, NSWindowDelegate {
     static let shared = ClipboardHistoryPanel()
 
     private var panel: NSPanel?
@@ -13,7 +13,7 @@ final class ClipboardHistoryPanel {
     private var items: [ClipboardItem] = []
     private var selection: Int = 0
 
-    private init() {}
+    private override init() {}
 
     func toggle(items: [ClipboardItem], onPick: @escaping (ClipboardItem) -> Void) {
         if panel != nil { hide(); return }
@@ -45,6 +45,7 @@ final class ClipboardHistoryPanel {
         )
         panel.contentView = NSHostingView(rootView: root)
         panel.center()
+        panel.delegate = self
         // .nonactivatingPanel lets this become key (so the local keyDown monitor
         // receives arrow/Enter/1-9/Esc) WITHOUT activating DictAI, so the
         // previously-frontmost app stays frontmost for the later synthetic ⌘V.
@@ -106,8 +107,19 @@ final class ClipboardHistoryPanel {
 
     func hide() {
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor); self.keyMonitor = nil }
-        panel?.orderOut(nil)
+        let panelToClose = panel
         panel = nil
+        panelToClose?.delegate = nil
+        panelToClose?.orderOut(nil)
+    }
+
+    // MARK: - NSWindowDelegate
+
+    /// Dismiss when the panel loses key status (e.g. the user clicks another app).
+    /// `hide()` is idempotent, so this is safe even if it races with the Esc/Return/
+    /// toggle paths, which also call `hide()`.
+    func windowDidResignKey(_ notification: Notification) {
+        hide()
     }
 }
 

@@ -27,6 +27,7 @@ class CursorPaster {
         // Set new text to clipboard
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        syncClipboardManager()
 
         // In sandboxed mode or without accessibility, just copy to clipboard and notify
         if isSandboxed || !AXIsProcessTrusted() {
@@ -129,6 +130,32 @@ class CursorPaster {
             item.setData(data, forType: type)
         }
         pasteboard.writeObjects([item])
+        syncClipboardManager()
+    }
+
+    // MARK: - Clipboard History Guard
+    //
+    // The dictation paste path writes to `NSPasteboard.general` twice (the transcription,
+    // then — when `preserveClipboard` restores the original a couple seconds later). Neither
+    // write should surface as a clipboard-history entry. `CursorPaster` is a plain `static`
+    // API that may be entered from a non-main-actor context (though in practice both call
+    // sites above run on the main thread), so resyncing `ClipboardManager`'s baseline has to
+    // reach the `@MainActor`-isolated manager safely:
+    //  - if we're already running on the main thread, hop onto the main actor synchronously
+    //    via `MainActor.assumeIsolated` so the resync completes before this function returns
+    //    (and well before the next 0.5s poll tick can fire in between);
+    //  - otherwise, fall back to an async hop — still fires promptly, just without the
+    //    same-turn guarantee.
+    private static func syncClipboardManager() {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                ClipboardManager.shared.markPasteboardSynced()
+            }
+        } else {
+            Task { @MainActor in
+                ClipboardManager.shared.markPasteboardSynced()
+            }
+        }
     }
 }
 

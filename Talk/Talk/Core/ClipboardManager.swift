@@ -14,11 +14,6 @@ final class ClipboardManager: ObservableObject {
     private var buffer = ClipboardBuffer(maxItems: 20)
     private var timer: Timer?
     private var lastChangeCount: Int = NSPasteboard.general.changeCount
-    /// When set, the poll skips capturing this changeCount (our own paste-back).
-    private var suppressedChangeCount: Int?
-
-    /// App that was frontmost when the picker opened; paste target. Set in Task 5.
-    var targetApp: NSRunningApplication?
 
     private init() {}
 
@@ -46,18 +41,21 @@ final class ClipboardManager: ObservableObject {
         let current = pb.changeCount
         guard current != lastChangeCount else { return }
         lastChangeCount = current
-        if suppressedChangeCount == current {
-            suppressedChangeCount = nil
-            return
-        }
         if let item = ClipboardManager.capture(from: pb) {
             ingest(item)
         }
     }
 
-    /// Call before writing to the pasteboard ourselves so the next poll ignores it.
-    func ignoreNextChange() {
-        suppressedChangeCount = NSPasteboard.general.changeCount + 1
+    /// Resync our polling baseline to the pasteboard's current changeCount.
+    ///
+    /// Call this immediately after ANY programmatic write to `NSPasteboard.general` that
+    /// should NOT be captured into history (our own paste-back, or the dictation
+    /// auto-paste/clipboard-restore path in `CursorPaster`). Because it reads the change
+    /// count synchronously right after the write, it's robust to multiple back-to-back
+    /// writes (e.g. write-then-restore): each write is followed by its own resync before
+    /// the next poll tick can observe it.
+    func markPasteboardSynced() {
+        lastChangeCount = NSPasteboard.general.changeCount
     }
 
     func ingest(_ item: ClipboardItem) {
@@ -118,7 +116,8 @@ final class ClipboardManager: ObservableObject {
     // MARK: - Recall
 
     func showPicker() {
-        targetApp = NSWorkspace.shared.frontmostApplication
+        // Feature disabled: ⌘⌥V and the menu item are a no-op (spec §Disabled).
+        guard enabled else { return }
         ClipboardHistoryPanel.shared.toggle(items: items) { [weak self] item in
             self?.paste(item)
         }
@@ -126,13 +125,13 @@ final class ClipboardManager: ObservableObject {
 
     func paste(_ item: ClipboardItem) {
         let pb = NSPasteboard.general
-        ignoreNextChange()
         pb.clearContents()
         let pbItem = NSPasteboardItem()
         for rep in item.representations {
             pbItem.setData(rep.data, forType: rep.type)
         }
         pb.writeObjects([pbItem])
+        markPasteboardSynced()
         // Small delay so the pasteboard is ready before the synthetic ⌘V.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             CursorPaster.pasteViaCmdV()
