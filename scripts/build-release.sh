@@ -3,11 +3,12 @@
 set -e
 
 # Configuration
-APP_NAME="Talk"
-SCHEME="Talk"
+APP_NAME="DictAI"                 # PRODUCT_NAME in the Xcode project; the scheme is still Talk
+ENTITLEMENTS="Talk/Talk/Talk-Pro.entitlements"  # same entitlements as the Debug build (adds Apple Events for agent mode)
+SCHEME="DictAI"                   # shared scheme in Talk.xcodeproj
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="/tmp/TalkRelease"
-OUTPUT_DIR="$PROJECT_DIR/dist"
+OUTPUT_DIR="${OUTPUT_DIR:-$HOME/code/releases/DictAI}"  # outside iCloud: synced folders re-add xattrs and codesign rejects them
 VERSION=$(date +%Y.%m.%d)
 
 # Colors for output
@@ -59,6 +60,7 @@ xcodebuild -scheme "$SCHEME" \
     CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
     CODE_SIGN_STYLE="Manual" \
     ENABLE_HARDENED_RUNTIME=YES \
+    CODE_SIGN_ENTITLEMENTS="Talk/Talk-Pro.entitlements" \
     OTHER_CODE_SIGN_FLAGS="--timestamp" \
     build 2>&1 | grep -E "(error:|warning:|BUILD|Signing)" || true
 
@@ -98,23 +100,22 @@ if [ -d "$WHISPER_FW" ]; then
     codesign --remove-signature "$WHISPER_FW" 2>/dev/null || true
     # Now re-sign with our identity
     echo "  Re-signing whisper.framework..."
-    codesign --force --sign "$SIGNING_IDENTITY" "$WHISPER_FW/Versions/A/whisper"
-    codesign --force --sign "$SIGNING_IDENTITY" "$WHISPER_FW"
+    codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$WHISPER_FW/Versions/A/whisper"
+    codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$WHISPER_FW"
 fi
 
 # Sign any other frameworks/dylibs
 find "$APP_PATH/Contents/Frameworks" -type f -name "*.dylib" 2>/dev/null | while read fw; do
     codesign --remove-signature "$fw" 2>/dev/null || true
-    codesign --force --sign "$SIGNING_IDENTITY" "$fw" 2>/dev/null || true
+    codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$fw" 2>/dev/null || true
 done
 
 # Sign the main app bundle
 echo "  Signing main app..."
-codesign --force --deep --sign "$SIGNING_IDENTITY" \
-    --options runtime \
-    --entitlements "$PROJECT_DIR/Talk/Talk/Talk.entitlements" \
-    "$APP_PATH" 2>/dev/null || \
-codesign --force --deep --sign "$SIGNING_IDENTITY" "$APP_PATH"
+codesign --force --sign "$SIGNING_IDENTITY" \
+    --options runtime --timestamp \
+    --entitlements "$PROJECT_DIR/$ENTITLEMENTS" \
+    "$APP_PATH"
 
 # Verify signature
 echo "Verifying signature..."

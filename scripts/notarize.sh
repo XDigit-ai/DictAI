@@ -14,7 +14,7 @@ set -e
 
 # Configuration
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DIST_DIR="$PROJECT_DIR/dist"
+DIST_DIR="${OUTPUT_DIR:-$HOME/code/releases/DictAI}"  # must match build-release.sh
 KEYCHAIN_PROFILE="AC_PASSWORD"  # Name used when storing credentials
 
 # Colors
