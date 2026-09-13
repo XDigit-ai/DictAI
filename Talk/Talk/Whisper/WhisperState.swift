@@ -17,7 +17,7 @@ class WhisperState: ObservableObject {
     @Published var isTranscribing = false
 
     // Settings
-    @AppStorage("selectedWhisperModel") var selectedModel: WhisperModel = .baseEn
+    @AppStorage("selectedWhisperModel") var selectedModel: WhisperModel = .largeV3TurboQ5
     @AppStorage("selectedLanguage") var selectedLanguage: String = "en"
 
     private var whisperContext: WhisperContext?
@@ -127,6 +127,10 @@ class WhisperState: ObservableObject {
 // MARK: - Whisper Models
 
 enum WhisperModel: String, CaseIterable, Codable {
+    // Recommended default: large-v3-turbo (q5_0 quant). Near large-v3 accuracy, multilingual,
+    // and fast on Apple Silicon via Metal — a large quality jump over base.en at only ~574 MB.
+    case largeV3TurboQ5 = "large-v3-turbo-q5_0"
+    case largeV3Turbo = "large-v3-turbo"
     case tinyEn = "tiny.en"
     case baseEn = "base.en"
     case smallEn = "small.en"
@@ -138,6 +142,8 @@ enum WhisperModel: String, CaseIterable, Codable {
 
     var displayName: String {
         switch self {
+        case .largeV3TurboQ5: return "Large v3 Turbo (Recommended)"
+        case .largeV3Turbo: return "Large v3 Turbo (Full)"
         case .tinyEn: return "Tiny (English)"
         case .baseEn: return "Base (English)"
         case .smallEn: return "Small (English)"
@@ -159,6 +165,8 @@ enum WhisperModel: String, CaseIterable, Codable {
 
     var sizeDescription: String {
         switch self {
+        case .largeV3TurboQ5: return "~574 MB"
+        case .largeV3Turbo: return "~1.6 GB"
         case .tinyEn, .tiny: return "~75 MB"
         case .baseEn, .base: return "~148 MB"
         case .smallEn, .small: return "~488 MB"
@@ -168,6 +176,7 @@ enum WhisperModel: String, CaseIterable, Codable {
 
     var speedDescription: String {
         switch self {
+        case .largeV3TurboQ5, .largeV3Turbo: return "Fast (Metal)"
         case .tinyEn, .tiny: return "Fastest"
         case .baseEn, .base: return "Fast"
         case .smallEn, .small: return "Moderate"

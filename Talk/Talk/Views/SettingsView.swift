@@ -49,7 +49,9 @@ struct SettingsView: View {
                     Label("Permissions", systemImage: "lock.shield")
                 }
         }
-        .frame(width: 520, height: 480)
+        // 9 tab items need a wide enough toolbar to all render inline; otherwise macOS
+        // collapses the overflow into a "»" menu whose items don't reliably switch panes.
+        .frame(width: 860, height: 520)
     }
 }
 
