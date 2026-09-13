@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import Talk
+@testable import DictAI
 
 struct TalkTests {
 
