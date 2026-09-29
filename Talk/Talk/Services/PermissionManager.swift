@@ -1,6 +1,7 @@
 import AVFoundation
 import AppKit
 import ApplicationServices
+import ScreenCaptureKit
 import Combine
 
 @MainActor
@@ -9,6 +10,7 @@ class PermissionManager: ObservableObject {
 
     @Published var microphoneStatus: AVAuthorizationStatus = .notDetermined
     @Published var accessibilityEnabled: Bool = false
+    @Published var screenRecordingEnabled: Bool = false
 
     /// Check if running in sandbox (App Store version)
     var isSandboxed: Bool {
@@ -32,6 +34,7 @@ class PermissionManager: ObservableObject {
     func checkAllPermissions() {
         checkMicrophonePermission()
         checkAccessibilityPermission()
+        checkScreenRecordingPermission()
     }
 
     func checkMicrophonePermission() {
@@ -127,6 +130,41 @@ class PermissionManager: ObservableObject {
     func openMicrophoneSettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!
         NSWorkspace.shared.open(url)
+    }
+
+    func checkScreenRecordingPermission() {
+        // ScreenCaptureKit availability check: try to enumerate shareable content
+        // If permission is not granted, the returned content will have empty displays
+        Task {
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+                screenRecordingEnabled = !content.displays.isEmpty
+            } catch {
+                screenRecordingEnabled = false
+            }
+        }
+    }
+
+    func openScreenRecordingSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Triggers the Screen Recording permission prompt by attempting a no-op capture,
+    /// then opens System Settings as a reliable fallback.
+    func requestScreenRecordingPermission() {
+        Task {
+            // Touching SCShareableContent triggers the TCC prompt on first use
+            _ = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+            await MainActor.run {
+                self.checkScreenRecordingPermission()
+                self.openScreenRecordingSettings()
+            }
+        }
+    }
+
+    var screenRecordingStatusText: String {
+        screenRecordingEnabled ? "Granted" : "Required for OCR context — Click to enable"
     }
 
     // MARK: - Polling for Accessibility

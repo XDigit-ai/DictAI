@@ -7,8 +7,8 @@ A native macOS menu bar app for voice dictation with local Whisper transcription
 ```bash
 # Build and run (no Xcode GUI needed)
 cd Talk
-xcodebuild -scheme Talk -configuration Debug -derivedDataPath /tmp/TalkBuild build
-open /tmp/TalkBuild/Build/Products/Debug/Talk.app
+xcodebuild -scheme DictAI -configuration Debug -derivedDataPath /tmp/TalkBuild build
+open /tmp/TalkBuild/Build/Products/Debug/DictAI.app
 
 # Or open in Xcode
 open Talk/Talk.xcodeproj
@@ -119,15 +119,15 @@ The app has full Ollama lifecycle management:
 ```bash
 # Build only
 cd Talk
-xcodebuild -scheme Talk -configuration Debug -derivedDataPath /tmp/TalkBuild build
+xcodebuild -scheme DictAI -configuration Debug -derivedDataPath /tmp/TalkBuild build
 
 # Build and run
 pkill -9 Talk 2>/dev/null
-xcodebuild -scheme Talk -configuration Debug -derivedDataPath /tmp/TalkBuild build
-open /tmp/TalkBuild/Build/Products/Debug/Talk.app
+xcodebuild -scheme DictAI -configuration Debug -derivedDataPath /tmp/TalkBuild build
+open /tmp/TalkBuild/Build/Products/Debug/DictAI.app
 
 # Copy to Desktop for sharing
-cp -R /tmp/TalkBuild/Build/Products/Debug/Talk.app ~/Desktop/
+cp -R /tmp/TalkBuild/Build/Products/Debug/DictAI.app ~/Desktop/
 
 # Clean extended attributes (if code signing fails)
 xattr -cr Talk Talk.xcodeproj
@@ -144,8 +144,8 @@ curl -s http://localhost:11434/api/tags | jq '.models[].name'
 ### Quick Build (for testing)
 ```bash
 cd Talk
-xcodebuild -scheme Talk -configuration Debug -derivedDataPath /tmp/TalkBuild build
-open /tmp/TalkBuild/Build/Products/Debug/Talk.app
+xcodebuild -scheme DictAI -configuration Debug -derivedDataPath /tmp/TalkBuild build
+open /tmp/TalkBuild/Build/Products/Debug/DictAI.app
 ```
 
 ### Release Build (for distribution)
@@ -155,7 +155,7 @@ open /tmp/TalkBuild/Build/Products/Debug/Talk.app
 
 # Output in dist/ folder:
 #   • Talk.app
-#   • Talk-YYYY.MM.DD.dmg
+#   • DictAI-YYYY.MM.DD.dmg (in ~/code/releases/DictAI, outside iCloud)
 #   • Talk-YYYY.MM.DD.zip
 ```
 

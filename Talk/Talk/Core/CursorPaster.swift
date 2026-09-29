@@ -27,6 +27,7 @@ class CursorPaster {
         // Set new text to clipboard
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        recordDictationInHistory(text)
 
         // In sandboxed mode or without accessibility, just copy to clipboard and notify
         if isSandboxed || !AXIsProcessTrusted() {
@@ -38,7 +39,7 @@ class CursorPaster {
         usleep(100000)  // 100ms
 
         // Simulate Cmd+V
-        simulatePaste()
+        pasteViaCmdV()
 
         // Restore original clipboard after a longer delay
         if preserveClipboard && !savedItems.isEmpty {
@@ -74,7 +75,8 @@ class CursorPaster {
 
     // MARK: - Keyboard Simulation
 
-    private static func simulatePaste() {
+    /// Simulate ⌘V into the frontmost application. Requires Accessibility.
+    static func pasteViaCmdV() {
         guard AXIsProcessTrusted() else {
             print("Accessibility permission not granted - cannot simulate paste")
             return
@@ -128,6 +130,55 @@ class CursorPaster {
             item.setData(data, forType: type)
         }
         pasteboard.writeObjects([item])
+        syncClipboardManager()
+    }
+
+    // MARK: - Clipboard History Integration
+    //
+    // The dictation paste path writes to `NSPasteboard.general` twice: the transcription, then
+    // — when `preserveClipboard` is on — the original clipboard is restored a couple seconds
+    // later. We want the transcription itself to LAND in clipboard history (so it can be
+    // re-pasted), but the restore write must not churn history.
+    //
+    // So the two writes are handled differently:
+    //  - transcription write -> `recordDictationInHistory(_:)`: explicitly ingest the text as a
+    //    history entry, then resync the poll baseline so the automatic 0.5s poll does not also
+    //    capture it (which would be a redundant front-dup);
+    //  - restore write -> `syncClipboardManager()`: only resync the baseline, so restoring the
+    //    original clipboard does not add or reorder history.
+    //
+    // `CursorPaster` is a plain `static` API that may be entered from a non-main-actor context
+    // (though in practice both call sites above run on the main thread), so reaching the
+    // `@MainActor`-isolated manager has to be done safely:
+    //  - if already on the main thread, hop onto the main actor synchronously via
+    //    `MainActor.assumeIsolated` so the work completes before the function returns (and well
+    //    before the next poll tick can fire in between);
+    //  - otherwise, fall back to an async hop — still prompt, just without the same-turn guarantee.
+
+    /// Record dictated text as a clipboard-history entry (respecting the enable toggle), then
+    /// resync the poll baseline so automatic capture does not double-add it.
+    private static func recordDictationInHistory(_ text: String) {
+        onMainActor {
+            guard ClipboardManager.shared.enabled else { return }
+            ClipboardManager.shared.ingest(.text(text))
+            ClipboardManager.shared.markPasteboardSynced()
+        }
+    }
+
+    /// Resync `ClipboardManager`'s poll baseline to the current pasteboard, so a programmatic
+    /// write we just made is not surfaced as a new history entry.
+    private static func syncClipboardManager() {
+        onMainActor {
+            ClipboardManager.shared.markPasteboardSynced()
+        }
+    }
+
+    private static func onMainActor(_ work: @escaping @MainActor () -> Void) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { work() }
+        } else {
+            Task { @MainActor in work() }
+        }
     }
 }
 
