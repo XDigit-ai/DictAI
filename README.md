@@ -8,7 +8,7 @@ DictAI lives in your menu bar. Hold a key, speak, let go, and your words are typ
 
 **[Download the latest DictAI (DMG)](https://github.com/XDigit-ai/DictAI/releases/latest/download/DictAI-Pro.dmg)**
 
-Requires macOS 14.0 or later. See [all releases](https://github.com/XDigit-ai/DictAI/releases) for release notes.
+Requires macOS 26.1 or later on an Apple Silicon Mac. See [all releases](https://github.com/XDigit-ai/DictAI/releases) for release notes.
 
 ## Features
 

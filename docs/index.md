@@ -8,7 +8,7 @@ DictAI Pro is a macOS menu bar app that transcribes your voice and automatically
 
 **[Download the latest DictAI Pro](https://github.com/XDigit-ai/DictAI/releases/latest/download/DictAI-Pro.dmg)**
 
-*Requires macOS 14.0 or later*
+*Requires macOS 26.1 or later on an Apple Silicon Mac*
 
 ## Features
 
