@@ -6,7 +6,7 @@ DictAI Pro is a macOS menu bar app that transcribes your voice and automatically
 
 ## Download
 
-**[Download DictAI Pro v1.0.0](https://github.com/akoneshot/talk/releases/download/v1.0.0-pro/DictAI-Pro.dmg)** (3.1 MB)
+**[Download the latest DictAI Pro](https://github.com/XDigit-ai/DictAI/releases/latest/download/DictAI-Pro.dmg)**
 
 *Requires macOS 14.0 or later*
 
@@ -22,7 +22,7 @@ DictAI Pro is a macOS menu bar app that transcribes your voice and automatically
 
 1. Download the DMG file above
 2. Open the DMG and drag DictAI to Applications
-3. **First launch:** Right-click the app → "Open" (required once to bypass Gatekeeper)
+3. **First launch:** Open DictAI from Applications. It is signed and notarized by Apple, so no security workaround is needed.
 4. Grant permissions when prompted:
    - **Microphone** - For recording your voice
    - **Accessibility** - For pasting text at cursor
