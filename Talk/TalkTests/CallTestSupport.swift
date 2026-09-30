@@ -48,3 +48,32 @@ func noise(_ seconds: Double, rmsFrom: Float, rmsTo: Float, seed: UInt64 = 42) -
         return unit * rms * Float(3).squareRoot()                         // uniform RMS = a / sqrt(3)
     }
 }
+
+// MARK: - Fakes
+
+enum FakeError: Error { case failed }
+
+/// Returns scripted segments, one response per call, and records the prompts it was given.
+final class FakeTranscriber: UtteranceTranscribing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var responses: [[WhisperSegment]]
+    private let failAll: Bool
+    private(set) var prompts: [String?] = []
+
+    init(responses: [[WhisperSegment]], failAll: Bool = false) {
+        self.responses = responses
+        self.failAll = failAll
+    }
+
+    func transcribe(samples: [Float], prompt: String?) async throws -> [WhisperSegment] {
+        try lock.withLock {
+            prompts.append(prompt)
+            if failAll { throw FakeError.failed }
+            return responses.isEmpty ? [] : responses.removeFirst()
+        }
+    }
+}
+
+func seg(_ text: String, _ start: TimeInterval, confidence: Double? = 0.9) -> WhisperSegment {
+    WhisperSegment(text: text, start: start, end: start + 1, confidence: confidence)
+}

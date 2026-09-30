@@ -7,6 +7,15 @@ import Foundation
 import whisper
 #endif
 
+/// One Whisper segment. Times are seconds relative to the samples passed in.
+nonisolated struct WhisperSegment: Equatable, Sendable {
+    let text: String
+    let start: TimeInterval
+    let end: TimeInterval
+    /// Mean probability of the segment's text tokens, or nil if it has none.
+    let confidence: Double?
+}
+
 /// Actor wrapper around whisper.cpp context for thread-safe transcription
 actor WhisperContext {
     private var context: OpaquePointer?
@@ -105,6 +114,64 @@ actor WhisperContext {
         #else
         // Stub for development - return placeholder text
         return "[Transcription placeholder - whisper framework not integrated]"
+        #endif
+    }
+
+    // MARK: - Segments (call transcripts)
+
+    /// Transcribes and reads results in one actor call, so a dictation request
+    /// cannot run in between and overwrite the results.
+    func transcribeSegments(samples: [Float], initialPrompt: String?, beamSize: Int) -> [WhisperSegment]? {
+        #if canImport(whisper)
+        guard let ctx = context, !samples.isEmpty,
+              !samples.contains(where: { $0.isNaN || $0.isInfinite }) else { return nil }
+
+        var params = whisper_full_default_params(beamSize > 1 ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY)
+        params.print_realtime = false
+        params.print_progress = false
+        params.print_timestamps = false
+        params.print_special = false
+        params.n_threads = Int32(max(1, ProcessInfo.processInfo.processorCount - 2))
+        params.beam_search.beam_size = Int32(beamSize)
+        params.translate = false
+        params.no_context = true
+        params.single_segment = false
+        params.no_speech_thold = 0.6
+        params.suppress_blank = true
+        params.suppress_nst = true
+
+        let prompt = initialPrompt ?? ""
+        let ok: Bool = "en".withCString { lang in
+            prompt.withCString { promptPtr in
+                params.language = lang
+                params.initial_prompt = prompt.isEmpty ? nil : promptPtr
+                return samples.withUnsafeBufferPointer { buffer in
+                    whisper_full(ctx, params, buffer.baseAddress, Int32(buffer.count)) == 0
+                }
+            }
+        }
+        guard ok else { return nil }
+
+        let eot = whisper_token_eot(ctx)
+        return (0..<whisper_full_n_segments(ctx)).compactMap { i in
+            guard let cText = whisper_full_get_segment_text(ctx, i) else { return nil }
+            let text = String(cString: cText).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            var probabilities: [Float] = []
+            for j in 0..<whisper_full_n_tokens(ctx, i) where whisper_full_get_token_id(ctx, i, j) < eot {
+                probabilities.append(whisper_full_get_token_p(ctx, i, j))
+            }
+            let confidence = probabilities.isEmpty
+                ? nil : Double(probabilities.reduce(0, +) / Float(probabilities.count))
+            // Segment t0 and t1 are in 10 ms units.
+            return WhisperSegment(
+                text: text,
+                start: Double(whisper_full_get_segment_t0(ctx, i)) / 100,
+                end: Double(whisper_full_get_segment_t1(ctx, i)) / 100,
+                confidence: confidence)
+        }
+        #else
+        return [WhisperSegment(text: "[whisper unavailable]", start: 0, end: 1, confidence: nil)]
         #endif
     }
 

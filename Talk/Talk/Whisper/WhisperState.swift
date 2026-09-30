@@ -97,6 +97,19 @@ class WhisperState: ObservableObject {
         return await context.getTranscription()
     }
 
+    // MARK: - Call transcripts
+
+    /// Loads the model if needed, then transcribes with timestamps and confidences.
+    func transcribeSegments(samples: [Float], initialPrompt: String?, beamSize: Int = 5) async throws -> [WhisperSegment] {
+        if whisperContext == nil { await loadModel() }
+        guard let context = whisperContext else { throw WhisperError.modelNotLoaded }
+        guard let segments = await context.transcribeSegments(
+            samples: samples, initialPrompt: initialPrompt, beamSize: beamSize) else {
+            throw WhisperError.transcriptionFailed
+        }
+        return segments
+    }
+
     func unloadModel() {
         whisperContext = nil
         isModelLoaded = false
