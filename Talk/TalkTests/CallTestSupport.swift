@@ -165,3 +165,38 @@ final class TestClock: @unchecked Sendable {
     var now = sampleStart
     func advance(_ seconds: TimeInterval) { now = now.addingTimeInterval(seconds) }
 }
+
+final class FakeCapture: CallCapturing, @unchecked Sendable {
+    var onAudio: (@Sendable (Speaker, AVAudioPCMBuffer) -> Void)?
+    var channels: [Speaker] = [.you, .them]
+    private(set) var started = false
+    private(set) var stopped = false
+
+    func start(appBundleKey: String?) throws -> [Speaker] {
+        started = true
+        return channels
+    }
+    func stop() { stopped = true }
+
+    /// Sends samples as if the hardware produced them.
+    func emit(_ speaker: Speaker, _ samples: [Float]) {
+        onAudio?(speaker, .mono16k(samples))
+    }
+}
+
+final class FakeLive: LiveTranscribing, @unchecked Sendable {
+    let speaker: Speaker
+    private var onResult: (@Sendable (LiveResult) -> Void)?
+    private(set) var appendedFrames = 0
+    private(set) var finished = false
+
+    init(speaker: Speaker) { self.speaker = speaker }
+
+    func start(onResult: @escaping @Sendable (LiveResult) -> Void) async throws { self.onResult = onResult }
+    func append(_ buffer: AVAudioPCMBuffer) { appendedFrames += Int(buffer.frameLength) }
+    func finish() async { finished = true }
+
+    func emit(_ text: String, at start: TimeInterval, confidence: Double? = 0.9) {
+        onResult?(LiveResult(speaker: speaker, start: start, text: text, confidence: confidence))
+    }
+}
