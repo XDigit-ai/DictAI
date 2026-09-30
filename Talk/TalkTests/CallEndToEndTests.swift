@@ -41,4 +41,50 @@ struct CallEndToEndTests {
         #expect(themText.lowercased().contains("next week"))    // last sentence present after finish()
         #expect(results.allSatisfy { $0.start >= 0 && $0.start < seconds(call.you.count) })
     }
+
+    /// Uses the app's downloaded Whisper model directly, without WhisperState.
+    struct ContextTranscriber: UtteranceTranscribing {
+        let context: WhisperContext
+        func transcribe(samples: [Float], prompt: String?) async throws -> [WhisperSegment] {
+            guard let segments = await context.transcribeSegments(samples: samples, initialPrompt: prompt, beamSize: 5) else {
+                throw FakeError.failed
+            }
+            return segments
+        }
+    }
+
+    @MainActor
+    @Test func finalPassOnScriptedCall() async throws {
+        let modelPath = WhisperState.shared.modelURL.path
+        try #require(FileManager.default.fileExists(atPath: modelPath), "No Whisper model at \(modelPath)")
+        let context = try await WhisperContext.createContext(path: modelPath)
+        let call = try ScriptedCall.make()
+        var header = sampleHeader()
+        header.ended = sampleStart.addingTimeInterval(seconds(call.you.count))
+        let doc = try await FinalPass.render(
+            channels: [.you: call.you, .them: call.them], header: header,
+            using: ContextTranscriber(context: context), timeZone: utc)
+
+        // Collect each speaker's text lines: every line after a "**You** · ..." or
+        // "**Them** · ..." heading belongs to that speaker until the next heading.
+        var bySpeaker: [String: [String]] = [:]
+        var current: String?
+        for line in doc.components(separatedBy: "\n") {
+            if line.hasPrefix("**You** · ") { current = "you"; continue }
+            if line.hasPrefix("**Them** · ") { current = "them"; continue }
+            if let current, !line.isEmpty { bySpeaker[current, default: []].append(line) }
+        }
+        let youText = (bySpeaker["you"] ?? []).joined(separator: " ")
+        let themText = (bySpeaker["them"] ?? []).joined(separator: " ")
+        #expect(wordAccuracy(expected: call.youText, actual: youText) >= 0.9, "You: \(youText)")
+        #expect(wordAccuracy(expected: call.themText, actual: themText) >= 0.9, "Them: \(themText)")
+        #expect(!doc.contains("BLANK_AUDIO"))
+        #expect(doc.lowercased().contains("next week"))
+
+        // Turns alternate You, Them, You, Them, You, Them.
+        let order = doc.components(separatedBy: "\n").compactMap { line -> String? in
+            line.hasPrefix("**You**") ? "you" : line.hasPrefix("**Them**") ? "them" : nil
+        }
+        #expect(order == ["you", "them", "you", "them", "you", "them"])
+    }
 }

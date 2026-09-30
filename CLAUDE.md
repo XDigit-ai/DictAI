@@ -46,6 +46,15 @@ Talk/
 │   ├── Processing/
 │   │   └── SimpleCleanupProcessor.swift  # Filler word removal
 │   │
+│   ├── CallTranscript/
+│   │   ├── CallSession.swift      # Coordinator: capture, live file, final pass, recovery
+│   │   ├── CallDetector.swift     # Detects call apps using the mic
+│   │   ├── CallAudioCapture.swift # Mic (echo cancelled) + ProcessTap (call app audio)
+│   │   ├── LiveTranscriber.swift  # Apple SpeechTranscriber, streams the live file
+│   │   ├── FinalPass.swift        # Whisper re-transcription after the call
+│   │   ├── TranscriptCleaner.swift # Cleaning rules (no rewording)
+│   │   └── TranscriptFile.swift   # The only writer of transcript files
+│   │
 │   ├── LLM/
 │   │   ├── LLMProvider.swift      # Protocol + LLMProviderType enum
 │   │   ├── OllamaManager.swift    # Ollama lifecycle: install detection, auto-launch, model download
@@ -113,6 +122,7 @@ The app has full Ollama lifecycle management:
 
 - **Microphone** - For audio recording
 - **Accessibility** - For simulating Cmd+V paste
+- **System Audio Recording** - For recording the other side of calls (asked on first call)
 
 ## Development Commands
 
@@ -137,6 +147,16 @@ curl -s http://localhost:11434
 
 # List Ollama models
 curl -s http://localhost:11434/api/tags | jq '.models[].name'
+```
+
+```bash
+# Tests without a development certificate
+cd Talk && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test -scheme DictAI \
+  -destination 'platform=macOS' -only-testing:TalkTests \
+  CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+
+# End to end call tests (real speech engines): prefix with TEST_RUNNER_DICTAI_E2E=1
+# (xcodebuild strips TEST_RUNNER_ and passes DICTAI_E2E=1 to the tests)
 ```
 
 ## Distribution
@@ -229,3 +249,4 @@ On MacBooks with a notch, the menu bar icon may be hidden when too many apps are
 - [Design System](docs/DESIGN.md) - UI/UX guidelines
 - [Features](docs/FEATURES.md) - Complete feature list
 - [TODO](docs/TODO.md) - Remaining tasks and future plans
+- [Call Transcripts](docs/CALL-TRANSCRIPTS.md) - Transcript files and the agent contract

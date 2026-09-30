@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-29
 **App:** DictAI (macOS menu bar dictation app)
-**Status:** Approved design, awaiting written spec review
+**Status:** Implemented
 **Replaces:** the Meeting feature (`Talk/Talk/Meeting/`)
 
 ## Summary
@@ -264,8 +264,8 @@ Rules run in this order on each utterance's text. Anything ambiguous is left unc
      "we should go".
    - Exceptions kept as spoken: `that that`, `had had`.
 4. **Layout**
-   - Collapse runs of whitespace, remove spaces before `, . ? ! ; :`, ensure one space after
-     them, and capitalize the first letter of the utterance and of each sentence.
+   - Collapse runs of whitespace, remove spaces before `, . ? ! ; :`, and
+     capitalize the first letter of the utterance and of each sentence.
    - No word is added, removed or reordered by this rule.
 
 If cleaning leaves an empty string, nothing is written. The junk rules mostly matter for the
@@ -416,3 +416,22 @@ Manual checks before release:
 - **Two concurrent analyzers.** Running two `SpeechAnalyzer` sessions at once (one per channel)
   must work reliably. Verified in the first implementation task with the scripted call; if it
   does not, the two channels are transcribed by one analyzer taking turns on pauses.
+
+## Changes made during planning
+
+1. Header `title` and `app` values are YAML double quoted, so titles containing `:` stay valid.
+2. The layout rule does not insert spaces after punctuation (it would break `3.5`, `e.g.`, `U.S.`). It only removes spaces before punctuation, collapses whitespace and capitalizes sentence starts.
+3. `CallDetector` polls Core Audio once per second instead of registering property listeners.
+4. The Them tap covers every Core Audio process whose bundle ID equals or starts with the call app's bundle ID plus `.` (Chrome and Teams run audio in helper processes). Safari calls are matched through `com.apple.WebKit.GPU`.
+5. Audio hand off uses one serial dispatch queue per recording (the "sink") instead of a ring buffer. The sink owns the WAV writers, the live transcriber input and all transcript file writes.
+6. `CallSession` has no `finalizing` phase. The final pass runs in the background, so a new call can start while the previous transcript is finishing.
+7. `NSSpeechRecognitionUsageDescription` is added next to `NSAudioCaptureUsageDescription`, in case SpeechAnalyzer asks for speech recognition authorization.
+8. The final pass counts as failed (status `ended-live-only`) when every utterance fails to transcribe, so a missing Whisper model never replaces live text with an empty transcript.
+9. The Apple speech model is installed in the background at app launch. A call never waits for the download: a call that starts before the model is ready is recorded with `live: unavailable`. There is no install progress UI.
+10. A live transcriber that fails mid call is not restarted. The error is logged and the final pass fills the gap.
+
+## Changes made during implementation
+
+1. Sentence capitalization skips the word after an abbreviation (a word with an inner period such as `U.S.` or `e.g.`, or a single letter), so "the U.S. market" is left unchanged.
+2. `NSAudioCaptureUsageDescription` is not a supported `INFOPLIST_KEY_` build setting, so it lives in a partial `Talk/DictAI-Info.plist` merged through `INFOPLIST_FILE`.
+3. Call transcript documentation is in `docs/CALL-TRANSCRIPTS.md`.
