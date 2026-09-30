@@ -31,6 +31,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ClipboardManager.shared.showPicker()
         }
 
+        // Call transcripts: detect calls and finish any transcript left by a crash.
+        CallSession.shared.bootstrap()
+
         // Check permissions on launch
         PermissionManager.shared.checkAllPermissions()
 
@@ -60,6 +63,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Cleanup
         HotkeyManager.shared.cleanup()
         ClipboardManager.shared.stop()
+        CallSession.shared.handleTermination()
     }
 
     // MARK: - Recording Panel

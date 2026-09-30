@@ -4,6 +4,7 @@ struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var permissionManager: PermissionManager
     @EnvironmentObject var whisperState: WhisperState
+    @EnvironmentObject var callSession: CallSession
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -12,6 +13,14 @@ struct MenuBarView: View {
 
             Divider()
                 .padding(.vertical, 8)
+
+            // Call transcripts
+            callSection
+
+            Divider()
+                .padding(.vertical, 8)
+
+
 
             // Mode Toggle
             modeSection
@@ -150,6 +159,80 @@ struct MenuBarView: View {
         return "\(simple) = Dictate, \(agent) = Agent"
     }
 
+    // MARK: - Call Section
+
+    private var callSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch callSession.phase {
+            case let .recording(started, app):
+                HStack {
+                    Circle()
+                        .fill(.red)
+                        .frame(width: 8, height: 8)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text("Transcribing \(app?.name ?? "call") · \(TranscriptRenderer.timestamp(context.date.timeIntervalSince(started)))")
+                            .font(.caption)
+                            .monospacedDigit()
+                    }
+                    Spacer()
+                    Button("Stop") {
+                        Task { await callSession.stop() }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .buttonStyle(.plain)
+                }
+                .padding(8)
+                .background(.red.opacity(0.08))
+                .cornerRadius(6)
+            case .idle:
+                Button {
+                    Task { await callSession.startManually() }
+                } label: {
+                    Label("Transcribe Call", systemImage: "phone.and.waveform")
+                        .font(.callout)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if callSession.finalizingCount > 0 {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                    Text("Finishing transcript…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let warning = callSession.warning {
+                Text(warning)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !callSession.pendingRetries.isEmpty {
+                Button("Retry final transcript") {
+                    Task { await callSession.retryPending() }
+                }
+                .font(.caption)
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+            }
+
+            Button {
+                NSWorkspace.shared.open(CallSettings.folderURL)
+            } label: {
+                Label("Open Transcripts Folder", systemImage: "folder")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+        }
+    }
+
+
     // MARK: - Mode Section
 
     private var modeSection: some View {
@@ -252,4 +335,5 @@ struct MenuBarView: View {
         .environmentObject(AppState.shared)
         .environmentObject(PermissionManager.shared)
         .environmentObject(WhisperState.shared)
+        .environmentObject(CallSession.shared)
 }

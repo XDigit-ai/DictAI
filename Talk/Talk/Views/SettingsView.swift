@@ -34,6 +34,12 @@ struct SettingsView: View {
                     Label("Autocomplete", systemImage: "text.append")
                 }
 
+            CallTranscriptSettingsTab()
+                .tabItem {
+                    Label("Calls", systemImage: "phone.and.waveform")
+                }
+
+
             ClipboardSettingsTab()
                 .tabItem {
                     Label("Clipboard", systemImage: "doc.on.clipboard")

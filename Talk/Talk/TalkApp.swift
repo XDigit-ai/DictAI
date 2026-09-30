@@ -7,6 +7,7 @@ struct TalkApp: App {
     @StateObject private var permissionManager = PermissionManager.shared
     @StateObject private var whisperState = WhisperState.shared
     @StateObject private var hotkeyManager = HotkeyManager.shared
+    @StateObject private var callSession = CallSession.shared
 
     var body: some Scene {
         // Menu bar app
@@ -15,8 +16,9 @@ struct TalkApp: App {
                 .environmentObject(appState)
                 .environmentObject(permissionManager)
                 .environmentObject(whisperState)
+                .environmentObject(callSession)
         } label: {
-            MenuBarIcon(isRecording: appState.isRecording)
+            MenuBarIcon(isRecording: appState.isRecording, isCallRecording: callSession.isRecording)
         }
         .menuBarExtraStyle(.window)
 

@@ -555,6 +555,8 @@
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "DictAI needs calendar access to create events from voice commands.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "DictAI needs microphone access to record your voice for transcription.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "DictAI transcribes your calls on your Mac.";
+				INFOPLIST_FILE = "DictAI-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -591,6 +593,8 @@
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "DictAI needs calendar access to create events from voice commands.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "DictAI needs microphone access to record your voice for transcription.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "DictAI transcribes your calls on your Mac.";
+				INFOPLIST_FILE = "DictAI-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
