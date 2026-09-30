@@ -34,11 +34,6 @@ struct SettingsView: View {
                     Label("Autocomplete", systemImage: "text.append")
                 }
 
-            MeetingSettingsTab()
-                .tabItem {
-                    Label("Meeting", systemImage: "person.2.wave.2")
-                }
-
             ClipboardSettingsTab()
                 .tabItem {
                     Label("Clipboard", systemImage: "doc.on.clipboard")

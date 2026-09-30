@@ -4,18 +4,11 @@ struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var permissionManager: PermissionManager
     @EnvironmentObject var whisperState: WhisperState
-    @EnvironmentObject var meetingState: MeetingState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Status Section
             statusSection
-
-            Divider()
-                .padding(.vertical, 8)
-
-            // Meeting Section
-            meetingSection
 
             Divider()
                 .padding(.vertical, 8)
@@ -157,89 +150,6 @@ struct MenuBarView: View {
         return "\(simple) = Dictate, \(agent) = Agent"
     }
 
-    // MARK: - Meeting Section
-
-    private var meetingSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if meetingState.isRecording {
-                // Active meeting
-                HStack {
-                    Circle()
-                        .fill(.orange)
-                        .frame(width: 8, height: 8)
-                    Text("Meeting: \(meetingState.formattedDuration)")
-                        .font(.caption)
-                        .monospacedDigit()
-                    Spacer()
-                    Button("Stop") {
-                        meetingState.stopMeeting()
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .buttonStyle(.plain)
-                }
-                .padding(8)
-                .background(.orange.opacity(0.1))
-                .cornerRadius(6)
-
-                Button {
-                    AppDelegate.shared?.showMeetingRecordingWindow()
-                } label: {
-                    Label("Open Meeting Window", systemImage: "rectangle.on.rectangle")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-            } else if meetingState.isGeneratingNotes {
-                HStack {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                    Text("Generating meeting notes...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                // Start meeting / quick recap
-                Button {
-                    meetingState.startMeeting()
-                    DispatchQueue.main.async {
-                        AppDelegate.shared?.showMeetingRecordingWindow()
-                    }
-                } label: {
-                    Label("Start Meeting", systemImage: "person.2.wave.2")
-                        .font(.callout)
-                }
-                .buttonStyle(.plain)
-                .disabled(!whisperState.isModelLoaded)
-
-                if let recap = meetingState.lastQuickRecap {
-                    Text(recap)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .padding(6)
-                        .background(.quaternary)
-                        .cornerRadius(4)
-                }
-            }
-
-            Button {
-                openMeetingsWindow()
-            } label: {
-                Label("View Meetings", systemImage: "list.bullet.rectangle")
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.blue)
-        }
-    }
-
-    private func openMeetingsWindow() {
-        DispatchQueue.main.async {
-            AppDelegate.shared?.showMeetingsWindow(nil)
-        }
-    }
-
     // MARK: - Mode Section
 
     private var modeSection: some View {
@@ -342,5 +252,4 @@ struct MenuBarView: View {
         .environmentObject(AppState.shared)
         .environmentObject(PermissionManager.shared)
         .environmentObject(WhisperState.shared)
-        .environmentObject(MeetingState.shared)
 }

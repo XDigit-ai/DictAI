@@ -1,5 +1,4 @@
 import AppKit
-import SwiftData
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -8,8 +7,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingPanel: NSPanel?
     private var agentPanel: NSPanel?
     private var agentStepObserver: Any?
-    private var meetingWindow: NSWindow?
-    private var meetingsListWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // This app is the host for the unit-test bundle. When running under XCTest,
@@ -63,86 +60,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Cleanup
         HotkeyManager.shared.cleanup()
         ClipboardManager.shared.stop()
-        // MeetingState handles its own termination via NotificationCenter
-    }
-
-    // MARK: - Meeting Recording Window
-
-    func showMeetingRecordingWindow() {
-        if meetingWindow == nil {
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 600, height: 450),
-                styleMask: [.titled, .closable, .resizable, .miniaturizable],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "Meeting"
-            window.center()
-            window.isReleasedWhenClosed = false
-            window.identifier = NSUserInterfaceItemIdentifier("meetingRecording")
-
-            let hostingView = NSHostingView(rootView:
-                MeetingRecordingView()
-                    .environmentObject(MeetingState.shared)
-            )
-            window.contentView = hostingView
-            meetingWindow = window
-        }
-
-        NSApp.setActivationPolicy(.regular)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.meetingWindow?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
-    }
-
-    func hideMeetingRecordingWindow() {
-        meetingWindow?.orderOut(nil)
-        // Restore dock icon preference if no other meeting windows are open
-        if meetingsListWindow?.isVisible != true {
-            AppState.shared.updateDockIconVisibility()
-        }
-    }
-
-    @objc func showMeetingsWindow(_ sender: Any?) {
-        if meetingsListWindow == nil {
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
-                styleMask: [.titled, .closable, .resizable, .miniaturizable],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "Meetings"
-            window.center()
-            window.isReleasedWhenClosed = false
-            window.identifier = NSUserInterfaceItemIdentifier("meetingsList")
-
-            // Create a model container for the meetings list
-            do {
-                let schema = Schema([Meeting.self])
-                let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-                let container = try ModelContainer(for: schema, configurations: [config])
-
-                let hostingView = NSHostingView(rootView:
-                    MeetingListView()
-                        .environmentObject(MeetingState.shared)
-                        .modelContainer(container)
-                )
-                window.contentView = hostingView
-            } catch {
-                DebugLogger.log("Failed to create model container for meetings window: \(error)", subsystem: "Meeting")
-                return
-            }
-
-            meetingsListWindow = window
-        }
-
-        // Ensure dock icon is visible so user can Cmd+Tab to the window
-        NSApp.setActivationPolicy(.regular)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.meetingsListWindow?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
     }
 
     // MARK: - Recording Panel

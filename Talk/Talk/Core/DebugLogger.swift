@@ -1,6 +1,6 @@
 import Foundation
 
-enum DebugLogger {
+nonisolated enum DebugLogger {
     static func log(_ message: String, subsystem: String) {
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         let line = "[\(timestamp)] [\(subsystem)] \(message)\n"

@@ -108,69 +108,6 @@ actor WhisperContext {
         #endif
     }
 
-    // MARK: - Meeting Transcription (multi-segment, timestamps)
-
-    func transcribeMeeting(samples: [Float]) -> Bool {
-        #if canImport(whisper)
-        guard let ctx = context else { return false }
-
-        // Validate samples
-        guard !samples.isEmpty, !samples.contains(where: { $0.isNaN || $0.isInfinite }) else {
-            return false
-        }
-
-        var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
-
-        params.print_realtime = false
-        params.print_progress = false
-        params.print_timestamps = true
-        params.print_special = false
-
-        params.n_threads = Int32(max(1, ProcessInfo.processInfo.processorCount - 2))
-        params.temperature = Float(0.0)
-        params.temperature_inc = Float(0.2)
-
-        let langStr = strdup("en")
-        params.language = UnsafePointer(langStr)
-        params.translate = false
-
-        // Multi-segment mode for meetings (not single_segment)
-        params.single_segment = false
-        params.suppress_blank = true
-        params.suppress_nst = true
-
-        return samples.withUnsafeBufferPointer { buffer in
-            whisper_full(ctx, params, buffer.baseAddress, Int32(buffer.count)) == 0
-        }
-        #else
-        return true
-        #endif
-    }
-
-    func getSegmentedTranscription() -> [(text: String, startMs: Int64, endMs: Int64)] {
-        #if canImport(whisper)
-        guard let ctx = context else { return [] }
-
-        var segments: [(text: String, startMs: Int64, endMs: Int64)] = []
-        let count = whisper_full_n_segments(ctx)
-
-        for i in 0..<count {
-            if let text = whisper_full_get_segment_text(ctx, i) {
-                let t0 = whisper_full_get_segment_t0(ctx, i)
-                let t1 = whisper_full_get_segment_t1(ctx, i)
-                let str = String(cString: text).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !str.isEmpty {
-                    segments.append((text: str, startMs: t0, endMs: t1))
-                }
-            }
-        }
-
-        return segments
-        #else
-        return [("[Meeting transcription placeholder]", 0, 1000)]
-        #endif
-    }
-
     // MARK: - Model Info
 
     func getLanguage() -> String {

@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 
 @main
 struct TalkApp: App {
@@ -8,22 +7,6 @@ struct TalkApp: App {
     @StateObject private var permissionManager = PermissionManager.shared
     @StateObject private var whisperState = WhisperState.shared
     @StateObject private var hotkeyManager = HotkeyManager.shared
-    @StateObject private var meetingState = MeetingState.shared
-
-    let modelContainer: ModelContainer
-
-    init() {
-        do {
-            let schema = Schema([Meeting.self])
-            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-            let container = try ModelContainer(for: schema, configurations: [config])
-            modelContainer = container
-            // Pass the container to MeetingState for persistence
-            MeetingState.shared.setModelContainer(container)
-        } catch {
-            fatalError("Failed to create ModelContainer: \(error)")
-        }
-    }
 
     var body: some Scene {
         // Menu bar app
@@ -32,9 +15,8 @@ struct TalkApp: App {
                 .environmentObject(appState)
                 .environmentObject(permissionManager)
                 .environmentObject(whisperState)
-                .environmentObject(meetingState)
         } label: {
-            MenuBarIcon(isRecording: appState.isRecording, isMeetingActive: meetingState.isRecording)
+            MenuBarIcon(isRecording: appState.isRecording)
         }
         .menuBarExtraStyle(.window)
 
@@ -61,7 +43,7 @@ struct TalkApp: App {
 // MARK: - Menu Bar Icon
 struct MenuBarIcon: View {
     let isRecording: Bool
-    var isMeetingActive: Bool = false
+    var isCallRecording: Bool = false
 
     var body: some View {
         Image(systemName: iconName)
@@ -70,13 +52,13 @@ struct MenuBarIcon: View {
     }
 
     private var iconName: String {
-        if isMeetingActive { return "record.circle.fill" }
+        if isCallRecording { return "record.circle.fill" }
         if isRecording { return "waveform.circle.fill" }
         return "waveform.circle"
     }
 
     private var iconColor: Color {
-        if isMeetingActive { return .orange }
+        if isCallRecording { return .red }
         if isRecording { return .red }
         return .primary
     }
