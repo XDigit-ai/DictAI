@@ -16,6 +16,7 @@ Requires macOS 26.1 or later on an Apple Silicon Mac. See [all releases](https:/
 - **Paste anywhere.** Text lands at your cursor in any app.
 - **Voice actions.** Hold Right Option and say what you want done. DictAI can search, open, reply, create and summarize across Mail, Calendar, Reminders, Notes, Messages and your browser.
 - **Clipboard history.** Press ⌘⌥V to bring back anything you copied or dictated and paste it again.
+- **Call transcripts.** When Zoom, Teams, Meet or another call app starts, DictAI offers to transcribe the call on your Mac. A cleaned transcript is written live to a Markdown file, then replaced with a more accurate version when the call ends.
 - **Two cleanup modes.** Simple mode strips filler words and repeats. Advanced mode uses an LLM for grammar, punctuation and structure.
 - **Your choice of AI.** Local models through Ollama (managed in the app), or Claude and OpenAI with your own API key.
 - **Global hotkey.** Hold Right Command to record, or pick another key and switch to toggle mode.
@@ -40,6 +41,20 @@ Install [Ollama](https://ollama.com/download), then open **Settings → Enhancem
 1. Hold **Right Command** (or your chosen hotkey) and speak.
 2. Release the key. Your speech is transcribed, cleaned up and pasted.
 3. Click the menu bar icon for settings, models and history.
+
+## Call transcripts
+
+Transcripts are saved in `~/Documents/DictAI Transcripts/`, one Markdown file per call, with your side labeled **You** and everyone else **Them**. The text is cleaned (filler sounds, stutters and speech engine artifacts removed) but never reworded.
+
+The first call asks for **System Audio Recording** permission, which lets DictAI hear the other side of the call. Everything runs on your Mac.
+
+While a call is being transcribed, `_live.md` in that folder points to it, so other tools and AI agents can follow along:
+
+```bash
+tail -f ~/Documents/DictAI\ Transcripts/_live.md
+```
+
+See [docs/CALL-TRANSCRIPTS.md](docs/CALL-TRANSCRIPTS.md) for the file format and the status values agents should check.
 
 ## Build from source
 
