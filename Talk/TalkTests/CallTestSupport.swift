@@ -155,3 +155,13 @@ func wordAccuracy(expected: String, actual: String) -> Double {
     }
     return max(0, 1 - Double(previous[a.count]) / Double(e.count))
 }
+
+final class FakeProcessSource: AudioProcessSource {
+    var processes: [AudioProcessInfo] = []
+    func currentProcesses() -> [AudioProcessInfo] { processes }
+}
+
+final class TestClock: @unchecked Sendable {
+    var now = sampleStart
+    func advance(_ seconds: TimeInterval) { now = now.addingTimeInterval(seconds) }
+}
