@@ -10,6 +10,7 @@ nonisolated enum TranscriptRenderer {
     }
 
     static func timestamp(_ t: TimeInterval) -> String {
+        guard t.isFinite else { return "00:00:00" }        // Int(NaN) would crash
         let total = max(0, Int(t.rounded(.down)))
         return String(format: "%02d:%02d:%02d", total / 3600, (total % 3600) / 60, total % 60)
     }

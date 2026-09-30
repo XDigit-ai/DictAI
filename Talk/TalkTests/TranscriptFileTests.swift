@@ -33,6 +33,12 @@ struct TranscriptFileTests {
         #expect(text.contains("status: final          \n"))
     }
 
+    /// Review: a non-finite time from the speech engine must not crash the app.
+    @Test func timestampOfNonFiniteTimeIsZero() {
+        #expect(TranscriptRenderer.timestamp(.nan) == "00:00:00")
+        #expect(TranscriptRenderer.timestamp(.infinity) == "00:00:00")
+    }
+
     @Test func fileNameIsSanitized() {
         #expect(TranscriptFile.sanitizedTitle("Q3: plan/review \"final\"") == "Q3 plan review final")
         #expect(TranscriptFile.sanitizedTitle("  \n ") == "Call")

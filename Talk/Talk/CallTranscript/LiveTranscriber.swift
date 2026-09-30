@@ -83,7 +83,8 @@ nonisolated final class AppleLiveTranscriber: LiveTranscribing, @unchecked Senda
                     guard !text.isEmpty else { continue }
                     let confidences = result.text.runs.compactMap { $0.transcriptionConfidence }
                     let confidence = confidences.isEmpty ? nil : confidences.reduce(0, +) / Double(confidences.count)
-                    onResult(LiveResult(speaker: speaker, start: result.range.start.seconds, text: text, confidence: confidence))
+                    let start = result.range.start.seconds
+                    onResult(LiveResult(speaker: speaker, start: start.isFinite ? start : 0, text: text, confidence: confidence))
                 }
             } catch {
                 DebugLogger.log("Live results for \(speaker.rawValue) ended: \(error)", subsystem: "Calls")
