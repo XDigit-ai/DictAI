@@ -94,4 +94,19 @@ struct CallDetectorTests {
         #expect(KnownCallApps.match("com.apple.WebKit.GPU")?.name == "Safari")
         #expect(KnownCallApps.match("com.google.Chromebook") == nil)
     }
+
+    /// Review Important 6: another app opening the mic (a Chrome tab listed first) must not
+    /// end the Zoom call that is still running.
+    @Test func secondAppOnTheMicDoesNotEndTheCall() {
+        let (detector, started, ended) = makeDetector()
+        source.processes = [zoom]
+        detector.evaluate()
+        tick(detector, seconds: 3)
+        #expect(started().map(\.name) == ["Zoom"])
+        let chrome = AudioProcessInfo(pid: 700, bundleID: "com.google.Chrome.helper", isRunningInput: true)
+        source.processes = [chrome, zoom]
+        tick(detector, seconds: 15)
+        #expect(ended().isEmpty)
+        #expect(detector.state == .inCall(CallApp(bundleKey: "us.zoom.xos", name: "Zoom")))
+    }
 }

@@ -100,30 +100,37 @@ final class CallDetector {
         timer = nil
     }
 
-    func activeCallApp() -> CallApp? {
+    /// Known call apps currently using the microphone, in process list order.
+    func activeCallApps() -> [CallApp] {
+        var apps: [CallApp] = []
         for process in source.currentProcesses() where process.isRunningInput && process.pid != ownPID {
-            if let app = KnownCallApps.match(process.bundleID) { return app }
+            if let app = KnownCallApps.match(process.bundleID), !apps.contains(app) { apps.append(app) }
         }
-        return nil
+        return apps
     }
 
+    func activeCallApp() -> CallApp? {
+        activeCallApps().first
+    }
+
+    /// A call stays running while its app is on the mic, whatever else is too.
     func evaluate() {
-        let active = activeCallApp()
+        let active = activeCallApps()
         let t = now()
         switch state {
         case .idle:
-            if let active { state = .candidate(active, since: t) }
+            if let first = active.first { state = .candidate(first, since: t) }
         case let .candidate(app, since):
-            if active != app {
-                state = active.map { .candidate($0, since: t) } ?? .idle
+            if !active.contains(app) {
+                state = active.first.map { .candidate($0, since: t) } ?? .idle
             } else if t.timeIntervalSince(since) >= startDelay {
                 state = .inCall(app)
                 onCallStarted?(app)
             }
         case let .inCall(app):
-            if active != app { state = .releasing(app, since: t) }
+            if !active.contains(app) { state = .releasing(app, since: t) }
         case let .releasing(app, since):
-            if active == app {
+            if active.contains(app) {
                 state = .inCall(app)
             } else if t.timeIntervalSince(since) >= releaseDelay {
                 state = .idle
