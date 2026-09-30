@@ -89,6 +89,11 @@ final class CallSession: ObservableObject {
     private let env: CallSessionEnvironment
     private var active: ActiveRecording?
     private var finalizations: [Task<Void, Never>] = []
+    private var finalizingFolders: Set<URL> = []
+    /// True between the start of `start()` and it finishing, including its awaits.
+    @Published private(set) var isStarting = false
+    private var startingApp: CallApp?
+    private var stopRequested = false
     private var detector: CallDetector?
 
     init(environment: CallSessionEnvironment) {
@@ -108,7 +113,7 @@ final class CallSession: ObservableObject {
     }
 
     private func callDetected(_ app: CallApp) {
-        guard CallSettings.autoDetect, !isRecording else { return }
+        guard CallSettings.autoDetect, !isRecording, !isStarting else { return }
         CallPromptPanel.shared.show(app: app) { [weak self] accepted in
             guard accepted else { return }
             Task { await self?.start(app: app) }
@@ -119,6 +124,8 @@ final class CallSession: ObservableObject {
         CallPromptPanel.shared.dismiss()
         if case let .recording(_, recordingApp) = phase, recordingApp == app {
             Task { await stop() }
+        } else if isStarting, startingApp == app {
+            stopRequested = true
         }
     }
 
@@ -130,27 +137,41 @@ final class CallSession: ObservableObject {
     // MARK: - Recording
 
     func start(app: CallApp?) async {
-        guard !isRecording else { return }
+        // Set before the first await, so a second start (double click, prompt plus menu) is ignored.
+        guard !isRecording, !isStarting else { return }
+        isStarting = true
+        startingApp = app
+        stopRequested = false
+        defer {
+            isStarting = false
+            startingApp = nil
+        }
         warning = nil
         let started = env.now()
         let title = env.calendarTitle() ?? app.map { "\($0.name) call" } ?? "Call"
         var header = TranscriptHeader(
             title: title, app: app?.name ?? "Unknown", started: started, ended: nil,
             channels: [.you, .them], liveUnavailable: false, status: .live)
+
+        // Everything created so far, so a failure part way can undo it.
+        let folder = env.sessionsRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        var writers: [Speaker: WAVWriter] = [:]
+        var live: [Speaker: LiveTranscribing] = [:]
+        var capture: CallCapturing?
+        var file: TranscriptFile?
         do {
-            let folder = env.sessionsRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let writers: [Speaker: WAVWriter] = [
+            writers = [
                 .you: try WAVWriter(url: folder.appendingPathComponent("you.wav")),
                 .them: try WAVWriter(url: folder.appendingPathComponent("them.wav")),
             ]
             let sink = DispatchQueue(label: "ai.xdigit.dictai.callsink", qos: .userInitiated)
 
-            // The file does not exist yet; live results wait on the sink until it does.
+            // Live results that arrive before the file exists are dropped (a few ms at most);
+            // the final pass covers them.
             let fileBox = FileBox()
             let liveOK = await env.liveAssetsReady()
             header.liveUnavailable = !liveOK
-            var live: [Speaker: LiveTranscribing] = [:]
             if liveOK {
                 for speaker in Speaker.allCases {
                     let transcriber = env.makeLive(speaker)
@@ -168,8 +189,9 @@ final class CallSession: ObservableObject {
                 }
             }
 
-            let capture = env.makeCapture()
-            capture.onAudio = { [live] speaker, buffer in
+            let newCapture = env.makeCapture()
+            capture = newCapture
+            newCapture.onAudio = { [live, writers] speaker, buffer in
                 let samples = buffer.monoSamples
                 // Each buffer is a fresh converted copy, owned by this hand off alone.
                 nonisolated(unsafe) let owned = buffer
@@ -178,24 +200,44 @@ final class CallSession: ObservableObject {
                     live[speaker]?.append(owned)
                 }
             }
-            header.channels = try capture.start(appBundleKey: app?.bundleKey)
+            header.channels = try newCapture.start(appBundleKey: app?.bundleKey)
 
-            let file = try TranscriptFile.create(in: env.transcriptsFolder(), header: header, timeZone: env.timeZone)
-            sink.sync { fileBox.file = file }
-            let manifest = SessionManifest(header: header, transcriptPath: file.url.path, appBundleKey: app?.bundleKey)
+            let newFile = try TranscriptFile.create(in: env.transcriptsFolder(), header: header, timeZone: env.timeZone)
+            file = newFile
+            sink.sync { fileBox.file = newFile }
+            let manifest = SessionManifest(header: header, transcriptPath: newFile.url.path, appBundleKey: app?.bundleKey)
             try saveManifest(manifest, in: folder)
-            active = ActiveRecording(folder: folder, manifest: manifest, file: file, capture: capture,
+            active = ActiveRecording(folder: folder, manifest: manifest, file: newFile, capture: newCapture,
                                      live: live, writers: writers, sink: sink)
             phase = .recording(started: started, app: app)
             DebugLogger.log("Call recording started: \(title)", subsystem: "Calls")
         } catch {
             warning = "Could not start transcribing: \(error.localizedDescription)"
             DebugLogger.log("Call start failed: \(error)", subsystem: "Calls")
+            capture?.stop()
+            for transcriber in live.values { await transcriber.finish() }
+            for writer in writers.values { try? writer.finalize() }
+            if let file {
+                file.removeLivePointer()
+                file.close()
+                try? FileManager.default.removeItem(at: file.url)
+            }
+            try? FileManager.default.removeItem(at: folder)
+            return
+        }
+
+        // The call ended (or Stop was clicked) while this start was still setting up.
+        if stopRequested {
+            stopRequested = false
+            await stop()
         }
     }
 
     func stop() async {
-        guard let rec = active else { return }
+        guard let rec = active else {
+            if isStarting { stopRequested = true }
+            return
+        }
         active = nil
         phase = .idle
         rec.capture.stop()
@@ -225,11 +267,15 @@ final class CallSession: ObservableObject {
 
     // MARK: - Final pass
 
+    /// Starts the final pass for a session folder unless one is already running for it.
     private func runFinalization(folder: URL, manifest: SessionManifest) {
+        guard !finalizingFolders.contains(folder) else { return }
+        finalizingFolders.insert(folder)
         finalizingCount += 1
         let task = Task { [weak self] in
             guard let self else { return }
             await self.finalize(folder: folder, manifest: manifest)
+            self.finalizingFolders.remove(folder)
             self.finalizingCount -= 1
         }
         finalizations.append(task)
@@ -254,17 +300,23 @@ final class CallSession: ObservableObject {
             let document = try await FinalPass.render(
                 channels: channels, header: manifest.header, using: env.transcriber, timeZone: env.timeZone)
             try file.replaceAtomically(with: document)
-            if env.keepAudio() { keepAudio(from: folder, next: fileURL) }
-            try FileManager.default.removeItem(at: folder)
-            pendingRetries.removeAll { $0 == folder }
-            DebugLogger.log("Final transcript written: \(fileURL.lastPathComponent)", subsystem: "Calls")
         } catch {
             DebugLogger.log("Final pass failed: \(error)", subsystem: "Calls")
             var header = manifest.header
             header.status = .endedLiveOnly
             try? file.rewriteHeader(header, timeZone: env.timeZone)
             if !pendingRetries.contains(folder) { pendingRetries.append(folder) }
+            return
         }
+        // The final transcript is in place; cleanup problems must not relabel it as failed.
+        pendingRetries.removeAll { $0 == folder }
+        if env.keepAudio() { keepAudio(from: folder, next: fileURL) }
+        do {
+            try FileManager.default.removeItem(at: folder)
+        } catch {
+            DebugLogger.log("Could not remove session folder \(folder.lastPathComponent): \(error)", subsystem: "Calls")
+        }
+        DebugLogger.log("Final transcript written: \(fileURL.lastPathComponent)", subsystem: "Calls")
     }
 
     private func keepAudio(from folder: URL, next transcript: URL) {
@@ -277,8 +329,7 @@ final class CallSession: ObservableObject {
     }
 
     func retryPending() async {
-        let folders = pendingRetries
-        for folder in folders {
+        for folder in pendingRetries where !finalizingFolders.contains(folder) {
             guard let manifest = loadManifest(in: folder) else { continue }
             runFinalization(folder: folder, manifest: manifest)
         }

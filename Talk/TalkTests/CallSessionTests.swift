@@ -12,7 +12,7 @@ struct CallSessionTests {
 
     func makeSession(
         transcriber: UtteranceTranscribing = FakeTranscriber(responses: [[seg("final words", 0)]]),
-        liveAssets: Bool = true, keepAudio: Bool = false
+        liveAssets: Bool = true, keepAudio: Bool = false, startDelay: Duration = .zero
     ) -> CallSession {
         let lives = self.lives
         let capture = self.capture
@@ -21,7 +21,10 @@ struct CallSessionTests {
             sessionsRoot: sessions,
             makeCapture: { capture },
             makeLive: { lives[$0]! },
-            liveAssetsReady: { liveAssets },
+            liveAssetsReady: {
+                if startDelay > .zero { try? await Task.sleep(for: startDelay) }
+                return liveAssets
+            },
             transcriber: transcriber,
             calendarTitle: { nil },
             keepAudio: { keepAudio },
@@ -147,5 +150,61 @@ struct CallSessionTests {
         await session.waitForFinalization()
         let files = try FileManager.default.contentsOfDirectory(atPath: transcripts.path).filter { $0.hasSuffix(".md") }
         #expect(files.count == 2)
+    }
+
+    // MARK: - Review fixes
+
+    /// Review Important 3: a double click must not start two recordings.
+    @Test func concurrentStartsRecordOnce() async throws {
+        let session = makeSession(startDelay: .milliseconds(50))
+        async let first: Void = session.start(app: nil)
+        async let second: Void = session.start(app: nil)
+        _ = await (first, second)
+        #expect(capture.startCount == 1)
+        #expect(session.isRecording)
+        await session.stop()
+        await session.waitForFinalization()
+    }
+
+    /// Review Important 3: the call ending while start is still setting up stops it.
+    @Test func stopDuringStartStopsOnceReady() async throws {
+        let session = makeSession(startDelay: .milliseconds(100))
+        async let starting: Void = session.start(app: nil)
+        try await Task.sleep(for: .milliseconds(20))
+        await session.stop()
+        await starting
+        await session.waitForFinalization()
+        #expect(!session.isRecording)
+        #expect(capture.stopped)
+        #expect(!(try transcriptText()).contains("status: live "))
+    }
+
+    /// Review Important 4: a failed start leaves nothing running and nothing on disk.
+    @Test func failedCaptureStartCleansUp() async throws {
+        capture.failStart = true
+        let session = makeSession()
+        await session.start(app: nil)
+        #expect(!session.isRecording)
+        #expect(session.warning != nil)
+        #expect(lives[.you]!.finished && lives[.them]!.finished)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: sessions.path).isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: transcripts.path).isEmpty)
+    }
+
+    /// Review Important 5: clicking Retry twice must finalize once and keep the final status.
+    @Test func doubleRetryFinalizesOnce() async throws {
+        let session = makeSession(transcriber: FakeTranscriber(responses: [[seg("final words", 0)]], failFirst: 1))
+        await session.start(app: nil)
+        capture.emit(.you, silence(1) + tone(2) + silence(1))
+        await session.stop()
+        await session.waitForFinalization()
+        #expect(try transcriptText().contains("status: ended-live-only"))
+
+        async let r1: Void = session.retryPending()
+        async let r2: Void = session.retryPending()
+        _ = await (r1, r2)
+        let text = try transcriptText()
+        #expect(text.contains("status: final "))
+        #expect(session.pendingRetries.isEmpty)
     }
 }

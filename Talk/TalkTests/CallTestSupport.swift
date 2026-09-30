@@ -60,18 +60,24 @@ final class FakeTranscriber: UtteranceTranscribing, @unchecked Sendable {
     private var responses: [[WhisperSegment]]
     private let failAll: Bool
     private let failure: Error
+    private var failFirst: Int
     private(set) var prompts: [String?] = []
 
-    init(responses: [[WhisperSegment]], failAll: Bool = false, failure: Error = FakeError.failed) {
+    init(responses: [[WhisperSegment]], failAll: Bool = false, failure: Error = FakeError.failed, failFirst: Int = 0) {
         self.responses = responses
         self.failAll = failAll
         self.failure = failure
+        self.failFirst = failFirst
     }
 
     func transcribe(samples: [Float], prompt: String?) async throws -> [WhisperSegment] {
         try lock.withLock {
             prompts.append(prompt)
             if failAll { throw failure }
+            if failFirst > 0 {
+                failFirst -= 1
+                throw failure
+            }
             return responses.isEmpty ? [] : responses.removeFirst()
         }
     }
@@ -171,10 +177,14 @@ final class TestClock: @unchecked Sendable {
 final class FakeCapture: CallCapturing, @unchecked Sendable {
     var onAudio: (@Sendable (Speaker, AVAudioPCMBuffer) -> Void)?
     var channels: [Speaker] = [.you, .them]
+    var failStart = false
     private(set) var started = false
+    private(set) var startCount = 0
     private(set) var stopped = false
 
     func start(appBundleKey: String?) throws -> [Speaker] {
+        startCount += 1
+        if failStart { throw CallCaptureError.noMicrophone }
         started = true
         return channels
     }

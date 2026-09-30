@@ -193,6 +193,7 @@ struct MenuBarView: View {
                         .font(.callout)
                 }
                 .buttonStyle(.plain)
+                .disabled(callSession.isStarting)
             }
 
             if callSession.finalizingCount > 0 {
