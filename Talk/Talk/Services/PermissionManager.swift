@@ -132,17 +132,12 @@ class PermissionManager: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    /// Reads the Screen Recording status without prompting. Touching ScreenCaptureKit here
+    /// showed the macOS permission dialog on every launch and every check.
+    static var screenRecordingPreflight: () -> Bool = { CGPreflightScreenCaptureAccess() }
+
     func checkScreenRecordingPermission() {
-        // ScreenCaptureKit availability check: try to enumerate shareable content
-        // If permission is not granted, the returned content will have empty displays
-        Task {
-            do {
-                let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-                screenRecordingEnabled = !content.displays.isEmpty
-            } catch {
-                screenRecordingEnabled = false
-            }
-        }
+        screenRecordingEnabled = Self.screenRecordingPreflight()
     }
 
     func openScreenRecordingSettings() {
