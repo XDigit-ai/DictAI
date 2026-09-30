@@ -7,7 +7,11 @@ nonisolated protocol UtteranceTranscribing: Sendable {
 /// Final pass transcription through the app's shared Whisper model.
 nonisolated struct WhisperFinalTranscriber: UtteranceTranscribing {
     func transcribe(samples: [Float], prompt: String?) async throws -> [WhisperSegment] {
-        try await WhisperState.shared.transcribeSegments(samples: samples, initialPrompt: prompt, beamSize: 5)
+        do {
+            return try await WhisperState.shared.transcribeSegments(samples: samples, initialPrompt: prompt, beamSize: 5)
+        } catch WhisperError.modelNotLoaded {
+            throw FinalPassError.transcriptionUnavailable
+        }
     }
 }
 
@@ -24,6 +28,8 @@ nonisolated enum FinalPass {
         var items: [TimedText] = []
         var attempted = 0
         var failed = 0
+        /// The transcriber cannot work at all (no model); nothing more was attempted.
+        var unavailable = false
     }
 
     static func transcribeChannel(
@@ -37,6 +43,10 @@ nonisolated enum FinalPass {
             let segments: [WhisperSegment]
             do {
                 segments = try await transcriber.transcribe(samples: utterance.samples, prompt: prompt)
+            } catch FinalPassError.transcriptionUnavailable {
+                result.failed += 1
+                result.unavailable = true
+                break
             } catch {
                 result.failed += 1
                 DebugLogger.log("Final pass failed at sample \(utterance.startSample): \(error)", subsystem: "Calls")
@@ -81,6 +91,7 @@ nonisolated enum FinalPass {
         for speaker in Speaker.allCases {
             guard let samples = channels[speaker] else { continue }
             let result = await transcribeChannel(samples, speaker: speaker, using: transcriber)
+            if result.unavailable { throw FinalPassError.transcriptionUnavailable }
             items += result.items
             attempted += result.attempted
             failed += result.failed

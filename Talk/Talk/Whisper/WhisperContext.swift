@@ -97,6 +97,13 @@ actor WhisperContext {
         #endif
     }
 
+    /// Transcribes and reads the text in one actor call, so a call final pass queued on
+    /// this actor cannot run in between and replace the results.
+    func transcribeText(samples: [Float]) -> String? {
+        guard transcribe(samples: samples) else { return nil }
+        return getTranscription()
+    }
+
     func getTranscription() -> String {
         #if canImport(whisper)
         guard let ctx = context else { return "" }

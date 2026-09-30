@@ -58,6 +58,16 @@ struct FinalPassTests {
         }
     }
 
+    /// A missing model must not be retried (and possibly re-downloaded) for every utterance.
+    @Test func unavailableModelStopsAfterTheFirstUtterance() async {
+        let fake = FakeTranscriber(responses: [], failAll: true, failure: FinalPassError.transcriptionUnavailable)
+        await #expect(throws: FinalPassError.transcriptionUnavailable) {
+            _ = try await FinalPass.render(
+                channels: [.you: twoUtterances, .them: twoUtterances], header: sampleHeader(), using: fake, timeZone: utc)
+        }
+        #expect(fake.prompts.count == 1)
+    }
+
     @Test func renderOfSilenceIsAnEmptyFinalTranscript() async throws {
         let fake = FakeTranscriber(responses: [])
         let doc = try await FinalPass.render(channels: [.you: silence(3)], header: sampleHeader(), using: fake, timeZone: utc)

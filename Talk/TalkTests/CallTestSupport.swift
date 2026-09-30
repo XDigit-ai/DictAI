@@ -59,17 +59,19 @@ final class FakeTranscriber: UtteranceTranscribing, @unchecked Sendable {
     private let lock = NSLock()
     private var responses: [[WhisperSegment]]
     private let failAll: Bool
+    private let failure: Error
     private(set) var prompts: [String?] = []
 
-    init(responses: [[WhisperSegment]], failAll: Bool = false) {
+    init(responses: [[WhisperSegment]], failAll: Bool = false, failure: Error = FakeError.failed) {
         self.responses = responses
         self.failAll = failAll
+        self.failure = failure
     }
 
     func transcribe(samples: [Float], prompt: String?) async throws -> [WhisperSegment] {
         try lock.withLock {
             prompts.append(prompt)
-            if failAll { throw FakeError.failed }
+            if failAll { throw failure }
             return responses.isEmpty ? [] : responses.removeFirst()
         }
     }

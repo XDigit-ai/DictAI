@@ -40,9 +40,21 @@ class WhisperState: ObservableObject {
         FileManager.default.fileExists(atPath: modelURL.path)
     }
 
-    func loadModel() async {
-        guard !isLoading else { return }
+    private var loadTask: Task<Void, Never>?
 
+    /// Loads the selected model. Callers that arrive while a load is running wait for it.
+    func loadModel() async {
+        if let loadTask {
+            await loadTask.value
+            return
+        }
+        let task = Task { await performLoad() }
+        loadTask = task
+        await task.value
+        loadTask = nil
+    }
+
+    private func performLoad() async {
         isLoading = true
         loadError = nil
 
@@ -89,12 +101,11 @@ class WhisperState: ObservableObject {
         // Load audio samples
         let samples = try Recorder.loadAudioSamples(from: audioURL)
 
-        // Transcribe
-        guard await context.transcribe(samples: samples) else {
+        // Transcribe and read the result in one actor call (see transcribeText)
+        guard let text = await context.transcribeText(samples: samples) else {
             throw WhisperError.transcriptionFailed
         }
-
-        return await context.getTranscription()
+        return text
     }
 
     // MARK: - Call transcripts
