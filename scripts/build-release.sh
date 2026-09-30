@@ -44,6 +44,18 @@ else
 fi
 echo ""
 
+# Hardened runtime enforces library validation: the app may only load frameworks
+# signed by the same Team ID. Ad-hoc signatures have no Team ID, so an ad-hoc app
+# with the hardened runtime cannot load whisper.framework and dies at launch.
+# The hardened runtime only matters for notarization, so drop it for ad-hoc builds.
+if [ "$SIGNING_IDENTITY" = "-" ]; then
+    HARDENED_RUNTIME="NO"
+    RUNTIME_FLAGS=()
+else
+    HARDENED_RUNTIME="YES"
+    RUNTIME_FLAGS=(--options runtime --timestamp)
+fi
+
 # Clean previous builds
 echo "Cleaning previous builds..."
 rm -rf "$BUILD_DIR"
@@ -59,7 +71,7 @@ xcodebuild -scheme "$SCHEME" \
     -archivePath "$BUILD_DIR/$APP_NAME.xcarchive" \
     CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
     CODE_SIGN_STYLE="Manual" \
-    ENABLE_HARDENED_RUNTIME=YES \
+    ENABLE_HARDENED_RUNTIME="$HARDENED_RUNTIME" \
     CODE_SIGN_ENTITLEMENTS="Talk/Talk-Pro.entitlements" \
     OTHER_CODE_SIGN_FLAGS="--timestamp" \
     build 2>&1 | grep -E "(error:|warning:|BUILD|Signing)" || true
@@ -100,20 +112,20 @@ if [ -d "$WHISPER_FW" ]; then
     codesign --remove-signature "$WHISPER_FW" 2>/dev/null || true
     # Now re-sign with our identity
     echo "  Re-signing whisper.framework..."
-    codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$WHISPER_FW/Versions/A/whisper"
-    codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$WHISPER_FW"
+    codesign --force "${RUNTIME_FLAGS[@]}" --sign "$SIGNING_IDENTITY" "$WHISPER_FW/Versions/A/whisper"
+    codesign --force "${RUNTIME_FLAGS[@]}" --sign "$SIGNING_IDENTITY" "$WHISPER_FW"
 fi
 
 # Sign any other frameworks/dylibs
 find "$APP_PATH/Contents/Frameworks" -type f -name "*.dylib" 2>/dev/null | while read fw; do
     codesign --remove-signature "$fw" 2>/dev/null || true
-    codesign --force --options runtime --timestamp --sign "$SIGNING_IDENTITY" "$fw" 2>/dev/null || true
+    codesign --force "${RUNTIME_FLAGS[@]}" --sign "$SIGNING_IDENTITY" "$fw" 2>/dev/null || true
 done
 
 # Sign the main app bundle
 echo "  Signing main app..."
 codesign --force --sign "$SIGNING_IDENTITY" \
-    --options runtime --timestamp \
+    "${RUNTIME_FLAGS[@]}" \
     --entitlements "$PROJECT_DIR/$ENTITLEMENTS" \
     "$APP_PATH"
 
