@@ -23,6 +23,7 @@ struct TranscriptCleanerTests {
         Case(input: "Um, so we start", confidence: nil, expected: "So we start"),
         Case(input: "I think, uh, we should go", confidence: nil, expected: "I think, we should go"),
         Case(input: "I think umm we're done", confidence: nil, expected: "I think we're done"),
+        Case(input: "Er, I think so", confidence: nil, expected: "I think so"),
         Case(input: "Hmm.", confidence: nil, expected: ""),
     ]
 
@@ -50,6 +51,13 @@ struct TranscriptCleanerTests {
         Case(input: "No. No. That's wrong.", confidence: nil, expected: "No. No. That's wrong."),
         Case(input: "It grew 3.5 percent in the U.S. market.", confidence: nil, expected: "It grew 3.5 percent in the U.S. market."),
         Case(input: "Well, so the numbers are fine.", confidence: nil, expected: "Well, so the numbers are fine."),
+        // Review: a repeat across a clause boundary is real speech, not a stutter.
+        Case(input: "If you can, can you send it?", confidence: nil, expected: "If you can, can you send it?"),
+        Case(input: "Whatever you do, do it well.", confidence: nil, expected: "Whatever you do, do it well."),
+        Case(input: "I said no, no one came.", confidence: nil, expected: "I said no, no one came."),
+        // Review: "ER" and "err" are words, not fillers.
+        Case(input: "He went to the ER.", confidence: nil, expected: "He went to the ER."),
+        Case(input: "Err on the side of caution.", confidence: nil, expected: "Err on the side of caution."),
     ]
 
     @Test(arguments: junk) func removesJunk(_ c: Case) {

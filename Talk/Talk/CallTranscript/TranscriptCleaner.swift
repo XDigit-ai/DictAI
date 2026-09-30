@@ -72,11 +72,13 @@ nonisolated enum TranscriptCleaner {
 
     // MARK: - Rule 2: fillers
 
-    private static let fillerPattern = try! NSRegularExpression(pattern: #"^(?:u+m+|u+h+|e+r+m*|a+h+|h+m+)$"#)
+    /// The spec's exact list. Words like "err" (the verb) are not fillers.
+    private static let fillers: Set<String> = ["um", "umm", "uh", "uhh", "er", "erm", "ah", "hmm"]
 
     static func isFiller(_ word: String) -> Bool {
-        let lower = word.lowercased()
-        return fillerPattern.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)) != nil
+        // All capitals is an acronym ("the ER"), not a sound.
+        if word.count > 1, word == word.uppercased() { return false }
+        return fillers.contains(word.lowercased())
     }
 
     static func removeFillers(_ text: String) -> String {
@@ -110,6 +112,9 @@ nonisolated enum TranscriptCleaner {
     // MARK: - Rule 3: stutters
 
     private static let keepDoubles: Set<String> = ["that", "had"]
+    /// Words people stutter on. Only these collapse across a comma ("I, I think");
+    /// other repeats across a clause boundary are real speech ("If you can, can you").
+    private static let stutterWords: Set<String> = ["i", "we", "the", "a", "and", "so", "it", "you"]
 
     static func collapseStutters(_ text: String) -> String {
         var tokens = text.split(separator: " ").map(String.init)
@@ -124,6 +129,8 @@ nonisolated enum TranscriptCleaner {
                 let b = tokens[(i + n)..<(i + 2 * n)].map { splitPunctuation($0).core.lowercased() }
                 guard a == b, !a.contains("") else { continue }
                 if n == 1, keepDoubles.contains(a[0]) { continue }
+                let endsClause = first.last.map { $0.hasSuffix(",") || $0.hasSuffix(";") || $0.hasSuffix(":") } ?? false
+                if endsClause, !(n == 1 && stutterWords.contains(a[0])) { continue }
                 tokens.removeSubrange(i..<(i + n))
                 removed = true
                 break
