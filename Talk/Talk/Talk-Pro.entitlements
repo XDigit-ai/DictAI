@@ -13,9 +13,5 @@
     <!-- Outgoing Network - Required for Ollama and cloud LLM APIs -->
     <key>com.apple.security.network.client</key>
     <true/>
-
-    <!-- Hardened Runtime exceptions for accessibility features -->
-    <key>com.apple.security.automation.apple-events</key>
-    <true/>
 </dict>
 </plist>

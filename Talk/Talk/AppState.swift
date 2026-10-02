@@ -5,7 +5,6 @@ import Combine
 enum ProcessingMode: String, CaseIterable, Codable {
     case simple = "Simple"
     case advanced = "Advanced"
-    case agent = "Agent"
 
     var description: String {
         switch self {
@@ -13,8 +12,6 @@ enum ProcessingMode: String, CaseIterable, Codable {
             return "Basic cleanup - removes filler words and repeated words"
         case .advanced:
             return "LLM enhancement - grammar, punctuation, and structure"
-        case .agent:
-            return "Voice-to-action - execute commands across apps"
         }
     }
 
@@ -24,8 +21,6 @@ enum ProcessingMode: String, CaseIterable, Codable {
             return "wand.and.rays"
         case .advanced:
             return "sparkles"
-        case .agent:
-            return "brain"
         }
     }
 }
@@ -156,15 +151,9 @@ class AppState: ObservableObject {
         }
         debugLog("stopRecording got audioURL=\(audioURL.lastPathComponent)")
 
-        // Hide recording panel (unless agent mode — keep it visible for status)
-        let activeMode = currentSessionMode ?? processingMode
-        if activeMode != .agent {
-            if let appDelegate = AppDelegate.shared {
-                appDelegate.hideRecordingPanel()
-            }
-        } else {
-            // Set processing flag immediately so MiniRecorderView shows agent UI without a gap
-            isProcessing = true
+        // Hide recording panel
+        if let appDelegate = AppDelegate.shared {
+            appDelegate.hideRecordingPanel()
         }
 
         // Process the audio
@@ -231,32 +220,6 @@ class AppState: ObservableObject {
                 }
                 processingStatus = "Enhancing with AI..."
                 processedText = try await AIEnhancementService.shared.enhance(transcription)
-            case .agent:
-                // Route to Agent Pipeline (recording panel stays visible showing agent steps)
-                processingStatus = "Processing..."
-                let result = try await AgentPipeline.shared.process(transcription: transcription)
-
-                switch result {
-                case .success(let success):
-                    if let text = success.resultText, success.shouldPaste {
-                        processedText = text
-                    } else {
-                        // Action completed without text output (e.g., opened an app)
-                        lastProcessedText = success.message
-                        processingStatus = ""
-                        isProcessing = false
-                        currentSessionMode = nil
-                        if playSoundFeedback { SoundManager.shared.playSuccessSound() }
-                        // Hide panel after brief delay so user sees "Done"
-                        hideRecordingPanelAfterDelay()
-                        try? FileManager.default.removeItem(at: url)
-                        return
-                    }
-                case .failure(let failure):
-                    // Hide panel and throw
-                    hideRecordingPanelAfterDelay()
-                    throw NSError(domain: "Agent", code: 1, userInfo: [NSLocalizedDescriptionKey: failure.message])
-                }
             }
 
             lastProcessedText = processedText
@@ -270,11 +233,7 @@ class AppState: ObservableObject {
 
             processingStatus = ""
             isProcessing = false
-            let wasAgent = (activeMode == .agent)
             currentSessionMode = nil  // Clear session mode
-
-            // Hide agent panel after paste
-            if wasAgent { hideRecordingPanelAfterDelay() }
 
             // Play success sound
             if playSoundFeedback {
@@ -288,7 +247,7 @@ class AppState: ObservableObject {
             isProcessing = false
             currentSessionMode = nil  // Clear session mode
 
-            // Hide agent panel on error
+            // Make sure the recording panel is gone after an error
             hideRecordingPanelAfterDelay()
 
             if playSoundFeedback {

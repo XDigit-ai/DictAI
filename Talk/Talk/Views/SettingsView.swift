@@ -24,11 +24,6 @@ struct SettingsView: View {
                     Label("Enhancement", systemImage: "sparkles")
                 }
 
-            AgentSettingsTab()
-                .tabItem {
-                    Label("Agent", systemImage: "brain")
-                }
-
             AutocompleteSettingsTab()
                 .tabItem {
                     Label("Autocomplete", systemImage: "text.append")
@@ -107,26 +102,14 @@ struct HotkeySettingsTab: View {
 
     var body: some View {
         Form {
-            Section("Simple Mode Hotkey") {
+            Section("Dictation Hotkey") {
                 Picker("Hotkey", selection: $hotkeyManager.simpleHotkey) {
                     ForEach(HotkeyType.allCases, id: \.self) { key in
                         Text(key.description).tag(key)
                     }
                 }
 
-                Text("Transcribes and removes filler words only")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Agent Mode Hotkey") {
-                Picker("Hotkey", selection: $hotkeyManager.agentHotkey) {
-                    ForEach(HotkeyType.allCases, id: \.self) { key in
-                        Text(key.description).tag(key)
-                    }
-                }
-
-                Text("Voice-to-action: executes commands across apps (search, open, reply, create)")
+                Text("Hold to dictate. Uses the processing mode selected in General (Simple or Advanced).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -135,11 +118,8 @@ struct HotkeySettingsTab: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Tips:")
                         .font(.caption.bold())
-                    Text("• Right Command (⌘) for dictation, Right Option (⌥) for agent mode")
                         .font(.caption)
                     Text("• Hold the key while speaking, release to process")
-                        .font(.caption)
-                    Text("• Agent mode requires Ollama or API key configured")
                         .font(.caption)
                 }
                 .foregroundStyle(.secondary)

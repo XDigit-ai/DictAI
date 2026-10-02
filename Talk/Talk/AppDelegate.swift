@@ -5,8 +5,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) var shared: AppDelegate!
 
     private var recordingPanel: NSPanel?
-    private var agentPanel: NSPanel?
-    private var agentStepObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // This app is the host for the unit-test bundle. When running under XCTest,
@@ -109,53 +107,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func hideRecordingPanel() {
         recordingPanel?.orderOut(nil)
-    }
-
-    // MARK: - Agent Processing Overlay
-
-    func showAgentOverlay() {
-        // Always recreate the hosting view to ensure fresh SwiftUI observation
-        if agentPanel == nil {
-            let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 240, height: 160),
-                styleMask: [.nonactivatingPanel, .fullSizeContentView],
-                backing: .buffered,
-                defer: false
-            )
-            panel.isFloatingPanel = true
-            panel.level = .floating
-            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            panel.isMovableByWindowBackground = true
-            panel.backgroundColor = .clear
-            panel.hasShadow = false
-            panel.titlebarAppearsTransparent = true
-            panel.titleVisibility = .hidden
-            agentPanel = panel
-        }
-
-        // Refresh the SwiftUI content to ensure proper @Published observation
-        let overlayView = AgentOverlayView()
-            .environmentObject(AppState.shared)
-            .environmentObject(AgentPipeline.shared)
-        agentPanel?.contentView = NSHostingView(rootView: overlayView)
-
-        // Position at top-center of the main screen
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let panelWidth: CGFloat = 240
-            let x = screenFrame.midX - panelWidth / 2
-            let y = screenFrame.maxY - 170
-            agentPanel?.setFrameOrigin(NSPoint(x: x, y: y))
-        }
-
-        agentPanel?.orderFront(nil)
-    }
-
-    func hideAgentOverlay() {
-        // Delay so user can see the completion state
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.agentPanel?.orderOut(nil)
-        }
     }
 
     // MARK: - Onboarding

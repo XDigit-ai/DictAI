@@ -4,7 +4,7 @@ set -e
 
 # Configuration
 APP_NAME="DictAI"                 # PRODUCT_NAME in the Xcode project; the scheme is still Talk
-ENTITLEMENTS="Talk/Talk/Talk-Pro.entitlements"  # same entitlements as the Debug build (adds Apple Events for agent mode)
+ENTITLEMENTS="Talk/Talk/Talk-Pro.entitlements"  # same entitlements as the Debug build
 SCHEME="DictAI"                   # shared scheme in Talk.xcodeproj
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="/tmp/TalkRelease"

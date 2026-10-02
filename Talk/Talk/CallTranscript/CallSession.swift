@@ -394,8 +394,11 @@ final class CallSession: ObservableObject {
 
     /// The calendar event happening now, or starting within 5 minutes.
     static func currentCalendarEventTitle() -> String? {
-        let now = Date()
-        let events = CalendarIntegration.shared.getTodayEvents()
+        meetingTitle(from: CalendarIntegration.shared.getTodayEvents(), now: Date())
+    }
+
+    /// Title of the event in progress at `now`, else one starting within 5 minutes.
+    static func meetingTitle(from events: [EKEvent], now: Date) -> String? {
         let event = events.first { $0.startDate <= now && $0.endDate >= now }
             ?? events.first { (0...300).contains($0.startDate.timeIntervalSince(now)) }
         guard let title = event?.title, !title.isEmpty else { return nil }

@@ -155,8 +155,7 @@ struct MenuBarView: View {
             return "Permissions required"
         }
         let simple = HotkeyManager.shared.simpleHotkey.description
-        let agent = HotkeyManager.shared.agentHotkey.description
-        return "\(simple) = Dictate, \(agent) = Agent"
+        return "\(simple) = Dictate"
     }
 
     // MARK: - Call Section

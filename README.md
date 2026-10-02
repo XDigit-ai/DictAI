@@ -14,7 +14,6 @@ Requires macOS 26.1 or later on an Apple Silicon Mac. See [all releases](https:/
 
 - **Local transcription.** Whisper runs on device with Metal acceleration. No cloud, no internet needed.
 - **Paste anywhere.** Text lands at your cursor in any app.
-- **Voice actions.** Hold Right Option and say what you want done. DictAI can search, open, reply, create and summarize across Mail, Calendar, Reminders, Notes, Messages and your browser.
 - **Clipboard history.** Press ⌘⌥V to bring back anything you copied or dictated and paste it again.
 - **Call transcripts.** When Zoom, Teams, Meet or another call app starts, DictAI offers to transcribe the call on your Mac. A cleaned transcript is written live to a Markdown file, then replaced with a more accurate version when the call ends.
 - **Two cleanup modes.** Simple mode strips filler words and repeats. Advanced mode uses an LLM for grammar, punctuation and structure.

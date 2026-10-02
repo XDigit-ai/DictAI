@@ -7,16 +7,10 @@ import Combine
 class HotkeyManager: ObservableObject {
     static let shared = HotkeyManager()
 
-    // Settings - Two hotkeys: Simple dictation and Agent (voice-to-action)
+    // Settings - dictation hotkey; the processing mode comes from AppState.processingMode
     @Published var simpleHotkey: HotkeyType {
         didSet {
             UserDefaults.standard.set(simpleHotkey.rawValue, forKey: "simpleHotkey")
-        }
-    }
-
-    @Published var agentHotkey: HotkeyType {
-        didSet {
-            UserDefaults.standard.set(agentHotkey.rawValue, forKey: "agentHotkey")
         }
     }
 
@@ -46,18 +40,11 @@ class HotkeyManager: ObservableObject {
             self.simpleHotkey = .rightCommand
         }
 
-        if let savedValue = UserDefaults.standard.string(forKey: "agentHotkey"),
-           let hotkey = HotkeyType(rawValue: savedValue) {
-            self.agentHotkey = hotkey
-        } else {
-            // Default: Right Option for agent mode
-            self.agentHotkey = .rightOption
-            UserDefaults.standard.set(HotkeyType.rightOption.rawValue, forKey: "agentHotkey")
-        }
-        // Clean up legacy key
+        // Clean up legacy keys (Advanced and Agent mode hotkeys no longer exist)
         UserDefaults.standard.removeObject(forKey: "advancedHotkey")
+        UserDefaults.standard.removeObject(forKey: "agentHotkey")
 
-        NSLog("[HotkeyManager] init: simpleHotkey=\(self.simpleHotkey.rawValue) agentHotkey=\(self.agentHotkey.rawValue)")
+        NSLog("[HotkeyManager] init: simpleHotkey=\(self.simpleHotkey.rawValue)")
 
         // Observe UserDefaults changes for sync across instances
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
@@ -68,11 +55,6 @@ class HotkeyManager: ObservableObject {
                    let hotkey = HotkeyType(rawValue: savedValue),
                    hotkey != self.simpleHotkey {
                     self.simpleHotkey = hotkey
-                }
-                if let savedValue = UserDefaults.standard.string(forKey: "agentHotkey"),
-                   let hotkey = HotkeyType(rawValue: savedValue),
-                   hotkey != self.agentHotkey {
-                    self.agentHotkey = hotkey
                 }
             }
             .store(in: &cancellables)
@@ -164,15 +146,13 @@ class HotkeyManager: ObservableObject {
         let flags = event.modifierFlags
         let keyCode = event.keyCode
 
-        // Check both hotkeys
         let simplePressed = isHotkeyActive(hotkey: simpleHotkey, flags: flags, keyCode: keyCode)
-        let agentPressed = isHotkeyActive(hotkey: agentHotkey, flags: flags, keyCode: keyCode)
 
         // Debug: log every flag change to file
-        debugLogHotkey("keyCode=\(keyCode) simple=\(simplePressed) agent=\(agentPressed) simpleHK=\(simpleHotkey.rawValue) agentHK=\(agentHotkey.rawValue) flags=\(flags.rawValue)")
+        debugLogHotkey("keyCode=\(keyCode) pressed=\(simplePressed) hotkey=\(simpleHotkey.rawValue) flags=\(flags.rawValue)")
 
-        // Determine which mode's hotkey is active (simple takes priority, then agent)
-        let newMode: ProcessingMode? = simplePressed ? .simple : (agentPressed ? .agent : nil)
+        // Dictation uses the mode selected in Settings or the menu bar (Simple or Advanced)
+        let newMode: ProcessingMode? = simplePressed ? AppState.shared.processingMode : nil
         let isPressed = newMode != nil
 
         if isPressed != isHotkeyPressed || (isPressed && newMode != activeHotkeyMode) {
