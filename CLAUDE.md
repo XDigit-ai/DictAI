@@ -245,6 +245,7 @@ On MacBooks with a notch, the menu bar icon may be hidden when too many apps are
 
 ## Documentation
 
+- [Status and next steps](docs/STATUS.md) - Read first when resuming work
 - [Architecture](docs/ARCHITECTURE.md) - System design and data flow
 - [Design System](docs/DESIGN.md) - UI/UX guidelines
 - [Features](docs/FEATURES.md) - Complete feature list
