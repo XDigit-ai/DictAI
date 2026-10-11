@@ -23,9 +23,9 @@ final class CallNotes: ObservableObject {
         generate: { try await AIEnhancementService.shared.generate(text: $0, systemPrompt: $1) },
         isConfigured: { await AIEnhancementService.shared.ensureConfigured() })
 
-    static let notesSuffix = " Notes.md"
+    nonisolated static let notesSuffix = " Notes.md"
     /// Transcript text per LLM request. Long calls are summarised in parts, then merged.
-    static let chunkCharacters = 6_000
+    nonisolated static let chunkCharacters = 6_000
 
     @Published private(set) var isRunning = false
     @Published private(set) var lastNotesURL: URL?
