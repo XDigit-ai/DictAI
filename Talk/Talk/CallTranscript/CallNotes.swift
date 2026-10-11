@@ -42,8 +42,8 @@ final class CallNotes: ObservableObject {
     // MARK: - Entry points
 
     /// Notes for the most recent transcript in the folder.
-    func makeForLatest(in folder: URL = CallSettings.folderURL) async {
-        guard let transcript = Self.latestTranscript(in: folder) else {
+    func makeForLatest(in folder: URL? = nil) async {
+        guard let transcript = Self.latestTranscript(in: folder ?? CallSettings.folderURL) else {
             lastError = CallNotesError.noTranscript.localizedDescription
             return
         }
