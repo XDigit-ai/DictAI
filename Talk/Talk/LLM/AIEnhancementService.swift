@@ -31,6 +31,15 @@ class AIEnhancementService: ObservableObject {
         }
     }
 
+    /// `isConfigured` after checking the Ollama connection again: Ollama is often started
+    /// by this app after launch, so the flag from the first check can be stale.
+    func ensureConfigured() async -> Bool {
+        if selectedProvider == .ollama, !ollamaService.isConnected {
+            await ollamaService.checkConnection()
+        }
+        return isConfigured
+    }
+
     var configurationStatus: String {
         switch selectedProvider {
         case .ollama:

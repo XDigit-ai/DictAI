@@ -21,7 +21,7 @@ nonisolated enum CallNotesError: LocalizedError, Equatable {
 final class CallNotes: ObservableObject {
     static let shared = CallNotes(
         generate: { try await AIEnhancementService.shared.generate(text: $0, systemPrompt: $1) },
-        isConfigured: { AIEnhancementService.shared.isConfigured })
+        isConfigured: { await AIEnhancementService.shared.ensureConfigured() })
 
     static let notesSuffix = " Notes.md"
     /// Transcript text per LLM request. Long calls are summarised in parts, then merged.
@@ -32,9 +32,9 @@ final class CallNotes: ObservableObject {
     @Published private(set) var lastError: String?
 
     private let generate: (String, String) async throws -> String
-    private let isConfigured: () -> Bool
+    private let isConfigured: () async -> Bool
 
-    init(generate: @escaping (String, String) async throws -> String, isConfigured: @escaping () -> Bool = { true }) {
+    init(generate: @escaping (String, String) async throws -> String, isConfigured: @escaping () async -> Bool = { true }) {
         self.generate = generate
         self.isConfigured = isConfigured
     }
@@ -66,7 +66,7 @@ final class CallNotes: ObservableObject {
     }
 
     func write(for transcript: URL) async throws -> URL {
-        guard isConfigured() else { throw CallNotesError.llmNotConfigured }
+        guard await isConfigured() else { throw CallNotesError.llmNotConfigured }
         let text = try String(contentsOf: transcript, encoding: .utf8)
         let (title, body) = Self.split(text)
         let parts = Self.chunks(of: body)
