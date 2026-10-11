@@ -11,6 +11,8 @@ nonisolated final class TranscriptFile: @unchecked Sendable {
 
     let url: URL
     private(set) var lastSpeaker: Speaker?
+    /// The current live paragraph, for the paragraph length rule.
+    private var paragraph = ""
     private var handle: FileHandle?
 
     init(url: URL) {
@@ -82,15 +84,21 @@ nonisolated final class TranscriptFile: @unchecked Sendable {
 
     // MARK: - Live writing
 
-    /// Appends text. Continues the current paragraph when the speaker is unchanged.
+    /// Appends text. Continues the current paragraph when the speaker is unchanged,
+    /// starting a new one once it is long (see `Paragraphing`).
     func append(speaker: Speaker, at time: TimeInterval, text: String) throws {
         guard !text.isEmpty else { return }
         let chunk: String
-        if speaker == lastSpeaker {
+        if speaker == lastSpeaker, !Paragraphing.breaks(after: paragraph, gap: 0) {
             chunk = " " + text
+            paragraph += " " + text
+        } else if speaker == lastSpeaker {
+            chunk = "\n\n" + text
+            paragraph = text
         } else {
             let separator = lastSpeaker == nil ? "" : "\n"
             chunk = separator + "\n" + TranscriptRenderer.turnHeading(speaker, at: time) + "\n" + text
+            paragraph = text
         }
         try writeAtEnd(chunk)
         lastSpeaker = speaker

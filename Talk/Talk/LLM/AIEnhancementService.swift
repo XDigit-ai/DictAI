@@ -31,6 +31,15 @@ class AIEnhancementService: ObservableObject {
         }
     }
 
+    /// `isConfigured` after checking the Ollama connection again: Ollama is often started
+    /// by this app after launch, so the flag from the first check can be stale.
+    func ensureConfigured() async -> Bool {
+        if selectedProvider == .ollama, !ollamaService.isConnected {
+            await ollamaService.checkConnection()
+        }
+        return isConfigured
+    }
+
     var configurationStatus: String {
         switch selectedProvider {
         case .ollama:
@@ -54,15 +63,18 @@ class AIEnhancementService: ObservableObject {
         // Detect voice directions in the text
         let (processedText, direction) = detectVoiceDirection(in: text)
         let finalPrompt = direction.map { "\(systemPrompt)\n\nUser's additional instruction: \($0)" } ?? systemPrompt
-        let inputText = processedText
+        return try await generate(text: processedText, systemPrompt: finalPrompt)
+    }
 
+    /// Sends text to the selected provider as is: no voice direction detection.
+    func generate(text: String, systemPrompt: String) async throws -> String {
         switch selectedProvider {
         case .ollama:
-            return try await ollamaService.generate(text: inputText, systemPrompt: finalPrompt)
+            return try await ollamaService.generate(text: text, systemPrompt: systemPrompt)
         case .claude:
-            return try await claudeService.generate(text: inputText, systemPrompt: finalPrompt)
+            return try await claudeService.generate(text: text, systemPrompt: systemPrompt)
         case .openai:
-            return try await openAIService.generate(text: inputText, systemPrompt: finalPrompt)
+            return try await openAIService.generate(text: text, systemPrompt: systemPrompt)
         }
     }
 

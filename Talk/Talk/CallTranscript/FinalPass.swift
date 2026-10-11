@@ -56,14 +56,16 @@ nonisolated enum FinalPass {
             for segment in segments {
                 let text = TranscriptCleaner.clean(segment.text, confidence: segment.confidence)
                 guard !text.isEmpty else { continue }
-                result.items.append(TimedText(speaker: speaker, start: offset + segment.start, text: text))
+                result.items.append(TimedText(
+                    speaker: speaker, start: offset + segment.start, end: offset + segment.end, text: text))
                 context += (context.isEmpty ? "" : " ") + text
             }
         }
         return result
     }
 
-    /// Sorted by start time (ties: You first), consecutive same speaker text joined.
+    /// Sorted by start time (ties: You first), consecutive same speaker text joined into one
+    /// turn, split into paragraphs at pauses and at sentence ends once a paragraph is long.
     static func mergeIntoTurns(_ items: [TimedText]) -> [Turn] {
         let sorted = items.enumerated().sorted { a, b in
             if a.element.start != b.element.start { return a.element.start < b.element.start }
@@ -71,12 +73,22 @@ nonisolated enum FinalPass {
             return a.offset < b.offset
         }.map(\.element)
         var turns: [Turn] = []
+        var paragraph = ""
+        var lastEnd: TimeInterval = 0
         for item in sorted {
             if let last = turns.last, last.speaker == item.speaker {
-                turns[turns.count - 1].text += " " + item.text
+                if Paragraphing.breaks(after: paragraph, gap: item.start - lastEnd) {
+                    turns[turns.count - 1].text += "\n\n" + item.text
+                    paragraph = item.text
+                } else {
+                    turns[turns.count - 1].text += " " + item.text
+                    paragraph += " " + item.text
+                }
             } else {
                 turns.append(Turn(speaker: item.speaker, start: item.start, text: item.text))
+                paragraph = item.text
             }
+            lastEnd = max(lastEnd, item.end)
         }
         return turns
     }

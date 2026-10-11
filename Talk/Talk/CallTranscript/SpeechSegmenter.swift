@@ -19,10 +19,12 @@ nonisolated struct SegmenterConfig: Sendable {
     var capSearchSec = 3.0
     var noiseFactor: Float = 3
     var minThreshold: Float = 0.002
+    /// Seconds of audio either side of a frame over which the noise floor is the quietest frame.
+    var floorWindowSec = 3.0
 }
 
 /// Splits a recorded channel into utterances at natural pauses, for the final pass.
-/// Energy based: an adaptive noise floor, hysteresis on speech start and end,
+/// Energy based: a minimum tracking noise floor, hysteresis on speech start and end,
 /// merging of close utterances and a hard cap just under Whisper's 30 s window.
 nonisolated enum SpeechSegmenter {
 
@@ -55,16 +57,33 @@ nonisolated enum SpeechSegmenter {
         }
     }
 
-    /// Speech when energy exceeds `max(floor * noiseFactor, minThreshold)`. The floor starts
-    /// at the 5th percentile and follows non speech frames, so slowly rising noise is tracked.
+    /// Speech when energy exceeds `max(floor * noiseFactor, minThreshold)`. The floor is the
+    /// quietest frame within `floorWindowSec` either side, so it follows slowly changing noise
+    /// but cannot climb into speech: a speaker who talks for minutes still leaves gaps between
+    /// words that are quieter than the words. (An averaging floor fed by every frame under the
+    /// threshold runs away during long speech and silences most of a call.)
     static func voicedFlags(_ energies: [Float], config c: SegmenterConfig) -> [Bool] {
-        let sorted = energies.sorted()
-        var floor = sorted[sorted.count / 20]
-        return energies.map { e in
-            let isSpeech = e > max(floor * c.noiseFactor, c.minThreshold)
-            if !isSpeech { floor = floor * 0.95 + e * 0.05 }
-            return isSpeech
+        let floors = windowMinimum(energies, radius: Int(c.floorWindowSec * 1000 / Double(c.frameMs)))
+        return zip(energies, floors).map { e, floor in e > max(floor * c.noiseFactor, c.minThreshold) }
+    }
+
+    /// Minimum of `values[i - radius ... i + radius]` for each `i`, clipped at the ends. O(n).
+    static func windowMinimum(_ values: [Float], radius: Int) -> [Float] {
+        guard !values.isEmpty else { return [] }
+        var out = [Float](repeating: 0, count: values.count)
+        var deque: [Int] = []       // indices with increasing values; front is the window minimum
+        var head = 0
+        for j in 0..<values.count + radius {
+            if j < values.count {
+                while deque.count > head, values[deque.last!] >= values[j] { deque.removeLast() }
+                deque.append(j)
+            }
+            let i = j - radius
+            guard i >= 0 else { continue }
+            while deque[head] < i - radius { head += 1 }
+            out[i] = values[deque[head]]
         }
+        return out
     }
 
     /// Inclusive first and last voiced frame of each utterance.

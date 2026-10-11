@@ -5,6 +5,7 @@ struct CallTranscriptSettingsTab: View {
     @AppStorage(CallSettings.folderKey) private var folderPath = CallSettings.defaultFolder.path
     @AppStorage(CallSettings.autoDetectKey) private var autoDetect = true
     @AppStorage(CallSettings.keepAudioKey) private var keepAudio = false
+    @AppStorage(CallSettings.autoNotesKey) private var autoNotes = false
 
     var body: some View {
         Form {
@@ -26,6 +27,13 @@ struct CallTranscriptSettingsTab: View {
             Section("Calls") {
                 Toggle("Offer to transcribe when a call starts", isOn: $autoDetect)
                 Toggle("Keep call audio next to transcripts", isOn: $keepAudio)
+            }
+
+            Section("Notes") {
+                Toggle("Make notes after each call", isOn: $autoNotes)
+                Text("Summary, key points, decisions and action items, written with the LLM chosen under Enhancement to a \"… Notes.md\" file next to the transcript. You can also make them any time from the menu bar.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Permissions") {

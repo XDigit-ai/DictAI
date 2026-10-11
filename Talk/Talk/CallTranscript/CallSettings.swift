@@ -4,6 +4,7 @@ enum CallSettings {
     static let folderKey = "callTranscriptsFolder"
     static let autoDetectKey = "callAutoDetect"
     static let keepAudioKey = "callKeepAudio"
+    static let autoNotesKey = "callAutoNotes"
 
     static var defaultFolder: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -29,6 +30,11 @@ enum CallSettings {
 
     static var keepAudio: Bool {
         UserDefaults.standard.bool(forKey: keepAudioKey)
+    }
+
+    /// Make notes with the Enhancement LLM after every final transcript.
+    static var autoNotes: Bool {
+        UserDefaults.standard.bool(forKey: autoNotesKey)
     }
 
     static var sessionsRoot: URL {

@@ -90,7 +90,8 @@ class OllamaService: ObservableObject, LLMProviderProtocol {
             "stream": false,
             "options": [
                 "temperature": 0.3,
-                "top_p": 0.9
+                "top_p": 0.9,
+                "num_ctx": 8192          // call notes send a few thousand tokens per request
             ]
         ]
 

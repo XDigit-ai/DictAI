@@ -78,6 +78,40 @@ struct LLMPrompts {
     Return ONLY the enhanced text, nothing else.
     """
 
+    static let callNotes = """
+    You turn a call transcript into meeting notes. "You" is the person who recorded the call; "Them" is everyone else.
+
+    Write in Markdown with these sections, leaving out any section that has nothing in it:
+    ## Summary (two to four sentences)
+    ## Key points (bullets, grouped by topic)
+    ## Decisions
+    ## Action items (one bullet each, with the owner when the transcript says who, and any date mentioned)
+    ## Open questions
+
+    Rules:
+    1. Use only what is in the transcript. Never invent names, numbers, dates or outcomes.
+    2. Keep the speakers' terms and names as spoken.
+    3. Be concise. No preamble, no commentary, no closing line.
+
+    Return ONLY the notes.
+    """
+
+    static let callNotesMerge = """
+    You are given meeting notes written for consecutive parts of one call, in order. Merge them into one set of notes with these sections, leaving out any section that has nothing in it:
+    ## Summary (two to four sentences)
+    ## Key points (bullets, grouped by topic)
+    ## Decisions
+    ## Action items
+    ## Open questions
+
+    Rules:
+    1. Keep every decision and action item. Remove duplicates and resolve questions that a later part answers.
+    2. Add nothing that is not in the parts.
+    3. No preamble, no commentary, no closing line.
+
+    Return ONLY the merged notes.
+    """
+
     static let emailReply = """
     You are an email writing assistant. Convert the following dictated content into a professional email reply.
 
