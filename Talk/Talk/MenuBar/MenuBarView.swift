@@ -5,6 +5,7 @@ struct MenuBarView: View {
     @EnvironmentObject var permissionManager: PermissionManager
     @EnvironmentObject var whisperState: WhisperState
     @EnvironmentObject var callSession: CallSession
+    @ObservedObject private var callNotes = CallNotes.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -221,11 +222,55 @@ struct MenuBarView: View {
                 .foregroundStyle(.blue)
             }
 
+            notesRow
+
             Button {
                 NSWorkspace.shared.open(CallSettings.folderURL)
             } label: {
                 Label("Open Transcripts Folder", systemImage: "folder")
                     .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+        }
+    }
+
+    /// Make notes from the last transcript, with its progress, result and error.
+    @ViewBuilder
+    private var notesRow: some View {
+        if callNotes.isRunning {
+            HStack {
+                ProgressView()
+                    .scaleEffect(0.6)
+                Text("Making notes…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Button {
+                Task { await callNotes.makeForLatest() }
+            } label: {
+                Label("Make Notes from Last Call", systemImage: "list.bullet.clipboard")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .disabled(callSession.isRecording || callSession.finalizingCount > 0)
+        }
+
+        if let error = callNotes.lastError {
+            Text(error)
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if let url = callNotes.lastNotesURL {
+            Button {
+                NSWorkspace.shared.open(url)
+            } label: {
+                Label("Open \(url.deletingPathExtension().lastPathComponent)", systemImage: "doc.text")
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
             .buttonStyle(.plain)
             .foregroundStyle(.blue)

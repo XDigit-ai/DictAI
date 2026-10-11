@@ -21,6 +21,9 @@ struct CallSessionEnvironment {
     var keepAudio: () -> Bool
     var now: () -> Date
     var timeZone: TimeZone = .current
+    var autoNotes: () -> Bool = { false }
+    /// Runs in the background after a final transcript is written, when `autoNotes` is on.
+    var makeNotes: (URL) async -> Void = { _ in }
 
     static var live: CallSessionEnvironment {
         CallSessionEnvironment(
@@ -36,7 +39,9 @@ struct CallSessionEnvironment {
             transcriber: WhisperFinalTranscriber(),
             calendarTitle: { CallSession.currentCalendarEventTitle() },
             keepAudio: { CallSettings.keepAudio },
-            now: Date.init)
+            now: Date.init,
+            autoNotes: { CallSettings.autoNotes },
+            makeNotes: { await CallNotes.shared.make(for: $0) })
     }
 }
 
@@ -317,6 +322,10 @@ final class CallSession: ObservableObject {
             DebugLogger.log("Could not remove session folder \(folder.lastPathComponent): \(error)", subsystem: "Calls")
         }
         DebugLogger.log("Final transcript written: \(fileURL.lastPathComponent)", subsystem: "Calls")
+        if env.autoNotes() {
+            let makeNotes = env.makeNotes
+            Task { await makeNotes(fileURL) }
+        }
     }
 
     private func keepAudio(from folder: URL, next transcript: URL) {

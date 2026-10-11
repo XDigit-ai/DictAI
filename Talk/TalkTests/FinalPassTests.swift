@@ -25,17 +25,30 @@ struct FinalPassTests {
 
     @Test func mergeOrdersByTimeAndGroupsSpeakers() {
         let turns = FinalPass.mergeIntoTurns([
-            TimedText(speaker: .them, start: 5, text: "Them later."),
-            TimedText(speaker: .you, start: 1, text: "First."),
-            TimedText(speaker: .you, start: 2, text: "Still me."),
-            TimedText(speaker: .them, start: 2, text: "Interrupting."),   // tie: you first
-            TimedText(speaker: .you, start: 9, text: "Last."),
+            TimedText(speaker: .them, start: 5, end: 6, text: "Them later."),
+            TimedText(speaker: .you, start: 1, end: 2, text: "First."),
+            TimedText(speaker: .you, start: 2, end: 3, text: "Still me."),
+            TimedText(speaker: .them, start: 2, end: 4, text: "Interrupting."),   // tie: you first
+            TimedText(speaker: .you, start: 9, end: 10, text: "Last."),
         ])
         #expect(turns == [
             Turn(speaker: .you, start: 1, text: "First. Still me."),
             Turn(speaker: .them, start: 2, text: "Interrupting. Them later."),
             Turn(speaker: .you, start: 9, text: "Last."),
         ])
+    }
+
+    @Test func mergeBreaksParagraphsAtPausesAndLongText() {
+        let sentence = String(repeating: "Words words words. ", count: 40).trimmingCharacters(in: .whitespaces)  // 759 chars
+        let turns = FinalPass.mergeIntoTurns([
+            TimedText(speaker: .you, start: 0, end: 1, text: "One."),
+            TimedText(speaker: .you, start: 2, end: 3, text: "Two."),            // 1.0 s gap: same paragraph
+            TimedText(speaker: .you, start: 4.5, end: 5, text: sentence),        // 1.5 s gap: new paragraph
+            TimedText(speaker: .you, start: 5, end: 6, text: "Three."),          // paragraph long and ended: new
+            TimedText(speaker: .you, start: 6, end: 7, text: "Four"),
+            TimedText(speaker: .you, start: 7, end: 8, text: "five."),
+        ])
+        #expect(turns == [Turn(speaker: .you, start: 0, text: "One. Two.\n\n\(sentence)\n\nThree. Four five.")])
     }
 
     @Test func renderProducesFinalDocument() async throws {
