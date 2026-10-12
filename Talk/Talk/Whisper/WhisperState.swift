@@ -91,18 +91,23 @@ class WhisperState: ObservableObject {
     // MARK: - Transcription
 
     func transcribe(audioURL: URL) async throws -> String {
-        guard let context = whisperContext else {
+        guard whisperContext != nil else {
             throw WhisperError.modelNotLoaded
         }
+        return try await transcribeText(samples: try Recorder.loadAudioSamples(from: audioURL))
+    }
+
+    /// Dictation text for 16 kHz mono samples. Loads the model if needed. `prompt` is
+    /// earlier text of the same take, given to Whisper as context.
+    func transcribeText(samples: [Float], prompt: String? = nil) async throws -> String {
+        if whisperContext == nil { await loadModel() }
+        guard let context = whisperContext else { throw WhisperError.modelNotLoaded }
 
         isTranscribing = true
         defer { isTranscribing = false }
 
-        // Load audio samples
-        let samples = try Recorder.loadAudioSamples(from: audioURL)
-
         // Transcribe and read the result in one actor call (see transcribeText)
-        guard let text = await context.transcribeText(samples: samples) else {
+        guard let text = await context.transcribeText(samples: samples, initialPrompt: prompt) else {
             throw WhisperError.transcriptionFailed
         }
         return text

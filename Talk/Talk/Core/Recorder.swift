@@ -2,24 +2,13 @@ import AVFoundation
 import Foundation
 import Combine
 
-class Recorder: NSObject, ObservableObject {
+/// Microphone capture for dictation. Delivers 16 kHz mono samples as they arrive,
+/// with a 0 to 1 level for the visualizer.
+final class Recorder: NSObject, ObservableObject {
     static let shared = Recorder()
 
-    private var audioRecorder: AVAudioRecorder?
-    private var levelTimer: Timer?
-    private var levelCallback: ((Float) -> Void)?
-    private var currentRecordingURL: URL?
-
-    // Audio settings optimized for Whisper
-    private let audioSettings: [String: Any] = [
-        AVFormatIDKey: Int(kAudioFormatLinearPCM),
-        AVSampleRateKey: 16000.0,  // Whisper expects 16kHz
-        AVNumberOfChannelsKey: 1,   // Mono
-        AVLinearPCMBitDepthKey: 16,
-        AVLinearPCMIsFloatKey: false,
-        AVLinearPCMIsBigEndianKey: false,
-        AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
-    ]
+    private var engine: AVAudioEngine?
+    private var converter: AudioBufferConverter?
 
     private override init() {
         super.init()
@@ -27,74 +16,45 @@ class Recorder: NSObject, ObservableObject {
 
     // MARK: - Recording Control
 
-    func startRecording(levelCallback: @escaping (Float) -> Void) {
-        self.levelCallback = levelCallback
-
-        // Create temporary file URL
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "talk_recording_\(Date().timeIntervalSince1970).wav"
-        let url = tempDir.appendingPathComponent(fileName)
-        currentRecordingURL = url
-
-        do {
-            audioRecorder = try AVAudioRecorder(url: url, settings: audioSettings)
-            audioRecorder?.delegate = self
-            audioRecorder?.isMeteringEnabled = true
-            audioRecorder?.prepareToRecord()
-            audioRecorder?.record()
-
-            // Start level metering
-            levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-                self?.updateAudioLevel()
-            }
-        } catch {
-            print("Failed to start recording: \(error)")
+    func startRecording(onSamples: @escaping @Sendable ([Float], Float) -> Void) throws {
+        let engine = AVAudioEngine()
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else { throw RecorderError.noMicrophone }
+        let converter = AudioBufferConverter(from: format, to: AudioBufferConverter.whisperFormat)
+        self.converter = converter
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [converter] buffer, _ in
+            guard let out = converter?.convert(buffer) else { return }
+            let samples = out.monoSamples
+            onSamples(samples, Self.level(of: samples))
         }
+        engine.prepare()
+        try engine.start()
+        self.engine = engine
     }
 
-    func stopRecording() -> URL? {
-        levelTimer?.invalidate()
-        levelTimer = nil
-        levelCallback = nil
-
-        audioRecorder?.stop()
-        let url = currentRecordingURL
-        audioRecorder = nil
-        currentRecordingURL = nil
-
-        return url
+    func stopRecording() {
+        engine?.inputNode.removeTap(onBus: 0)
+        engine?.stop()
+        engine = nil
+        converter = nil
     }
 
     func cancelRecording() {
-        levelTimer?.invalidate()
-        levelTimer = nil
-        levelCallback = nil
-
-        audioRecorder?.stop()
-
-        // Delete the recording file
-        if let url = currentRecordingURL {
-            try? FileManager.default.removeItem(at: url)
-        }
-
-        audioRecorder = nil
-        currentRecordingURL = nil
+        stopRecording()
     }
 
     // MARK: - Audio Level
 
-    private func updateAudioLevel() {
-        guard let recorder = audioRecorder else { return }
-
-        recorder.updateMeters()
-        let avgPower = recorder.averagePower(forChannel: 0)
-
-        // Convert dB to linear scale (0 to 1)
-        // avgPower is typically -160 to 0 dB
+    /// RMS in dB mapped from -60 dB...0 dB to 0...1, like AVAudioRecorder's average power.
+    static func level(of samples: [Float]) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        var sum: Float = 0
+        for s in samples { sum += s * s }
+        let rms = (sum / Float(samples.count)).squareRoot()
+        let db = 20 * log10(max(rms, 1e-6))
         let minDb: Float = -60
-        let level = max(0, min(1, (avgPower - minDb) / (-minDb)))
-
-        levelCallback?(level)
+        return max(0, min(1, (db - minDb) / (-minDb)))
     }
 
     // MARK: - Audio File Conversion
@@ -153,25 +113,10 @@ class Recorder: NSObject, ObservableObject {
     }
 }
 
-// MARK: - AVAudioRecorderDelegate
-
-extension Recorder: AVAudioRecorderDelegate {
-    func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
-        if !flag {
-            print("Recording finished unsuccessfully")
-        }
-    }
-
-    func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
-        if let error = error {
-            print("Recording encode error: \(error)")
-        }
-    }
-}
-
 // MARK: - Errors
 
 enum RecorderError: LocalizedError {
+    case noMicrophone
     case formatCreationFailed
     case converterCreationFailed
     case bufferCreationFailed
@@ -179,6 +124,8 @@ enum RecorderError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .noMicrophone:
+            return "No microphone input available"
         case .formatCreationFailed:
             return "Failed to create audio format"
         case .converterCreationFailed:

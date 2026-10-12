@@ -134,6 +134,7 @@ struct HotkeySettingsTab: View {
 
 struct TranscriptionSettingsTab: View {
     @ObservedObject private var whisperState = WhisperState.shared
+    @ObservedObject private var appState = AppState.shared
 
     var body: some View {
         Form {
@@ -183,6 +184,20 @@ struct TranscriptionSettingsTab: View {
                     Text("English").tag("en")
                     Text("Auto-detect").tag("auto")
                 }
+            }
+
+            Section("Live text") {
+                Toggle("Show text while recording", isOn: $appState.liveDictation)
+                Picker("Clip length", selection: $appState.liveClipSeconds) {
+                    Text("5 s").tag(5.0)
+                    Text("7 s").tag(7.0)
+                    Text("10 s").tag(10.0)
+                }
+                .pickerStyle(.segmented)
+                .disabled(!appState.liveDictation)
+                Text("Audio goes to Whisper in clips while you talk, each cut at a pause near the clip length. Shorter clips show text sooner; longer clips give Whisper more context per clip. The last clip is all that is left to do when you let go.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
