@@ -93,7 +93,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             recordingPanel = panel
         }
 
-        recordingPanel?.setContentSize(NSSize(width: 300, height: MiniRecorderView.height(live: AppState.shared.liveDictation)))
+        recordingPanel?.setContentSize(NSSize(width: 300, height: MiniRecorderView.height(live: AppState.shared.showsLiveText)))
 
         // Position near mouse cursor
         if NSScreen.main != nil {
