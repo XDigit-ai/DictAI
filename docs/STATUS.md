@@ -1,12 +1,17 @@
 # DictAI status
 
-Last updated: 2026-10-12. Read this first when picking the project up again.
+Last updated: 2026-10-13. Read this first when picking the project up again.
 
 ## Where things stand
 
-- **Latest release:** [v2026.10.11-pro](https://github.com/XDigit-ai/DictAI/releases/tag/v2026.10.11-pro), signed with the Developer ID and notarized. The website and README download links use `releases/latest/download/DictAI-Pro.dmg`, so they always serve the newest release.
+- **Latest release:** [v2026.10.12-pro](https://github.com/XDigit-ai/DictAI/releases/tag/v2026.10.12-pro), signed with the Developer ID and notarized. The website and README download links use `releases/latest/download/DictAI-Pro.dmg`, so they always serve the newest release.
 - **Installed:** the same build is in `/Applications/DictAI.app` on AK's Mac Studio, and a copy of the DMG is in iCloud Drive, Downloads, for the other Macs.
-- **Tests:** 100 unit tests pass. Opt-in suites (real speech engines, audio hardware) are skipped by default; see "Testing" below.
+- **Tests:** 109 unit tests pass. Opt-in suites (real speech engines, audio hardware) are skipped by default; see "Testing" below.
+
+## Done on 2026-10-12 (PR #6)
+
+1. **Live dictation.** Push to talk no longer waits for release. `Recorder` captures through an `AVAudioEngine` tap (no temp WAV). `DictationClipper` cuts the stream into clips of about 5, 7 or 10 s (Settings, Transcription, Live text; default 7 s) at the quietest 30 ms frame in the last 3 s, but only when that frame is under half the window's median energy, else at the target. `DictationSession` sends each clip to Whisper while recording continues, with the last 200 characters of earlier text as `initial_prompt`, skips silent clips, pads clips under 1 s, and reports the text so far to `AppState.liveText`, shown in `MiniRecorderView`. `finish()` only has the last clip left, then cleanup and paste run as before. With the toggle off, the whole take is transcribed once at the end.
+2. **Notarization from Claude Code.** Claude's sandboxed shell cannot read the `AC_PASSWORD` keychain item and reports it missing. The item is fine; run `./scripts/notarize.sh` from your own shell (the `!` prefix in Claude Code).
 
 ## Done on 2026-10-11 (PR #4)
 
@@ -37,11 +42,12 @@ In rough priority order:
    - Connect AirPods mid call, and a call fully on AirPods. Capture does not handle audio route changes yet (open review finding).
    - Force quit mid call, relaunch: final transcript appears.
    - FaceTime, Firefox and Arc calls: check detection and that the Them channel is not silent.
-2. **Notes, follow ups.** Untested on a long call that needs several chunks and a merge. The Settings "Connected to Ollama" check only pings the server; on 2026-10-11 Ollama had no models at all and notes failed with `model 'qwen2.5:3b' not found` until `qwen2.5:3b` was pulled. Settings should check the selected model exists and offer the download. Notes are English only and use a fixed prompt.
-3. **Language setting is ignored.** Settings has a Language picker, but `WhisperContext.transcribe` hardcodes `"en"` (`Talk/Talk/Whisper/WhisperContext.swift`, `transcribe(samples:)`). Fix it, then the website can mention Arabic and other languages again.
-4. **Email registration.** On first setup DictAI sends the email (and optional name) to the Supabase project in `Services/UserRegistrationService.swift`. The website now says so. Confirm this is still wanted.
-5. **Website PR:** merge it in `xd-website-v2` so Vercel deploys the refreshed DictAI page.
-6. **Deferred review findings** (minor):
+2. **Live dictation, follow ups.** Untested beyond unit tests and a first launch: watch for cuts inside words when talking without pauses (a longer clip gives more room to find one), and for clip boundaries producing "sentence. the rest" joins. The overlay hides on release; a processing state there would help long takes in Advanced mode.
+3. **Notes, follow ups.** Untested on a long call that needs several chunks and a merge. The Settings "Connected to Ollama" check only pings the server; on 2026-10-11 Ollama had no models at all and notes failed with `model 'qwen2.5:3b' not found` until `qwen2.5:3b` was pulled. Settings should check the selected model exists and offer the download. Notes are English only and use a fixed prompt.
+4. **Language setting is ignored.** Settings has a Language picker, but `WhisperContext.transcribe` hardcodes `"en"` (`Talk/Talk/Whisper/WhisperContext.swift`, `transcribe(samples:)`). Fix it, then the website can mention Arabic and other languages again.
+5. **Email registration.** On first setup DictAI sends the email (and optional name) to the Supabase project in `Services/UserRegistrationService.swift`. The website now says so. Confirm this is still wanted.
+6. **Website PR:** merge it in `xd-website-v2` so Vercel deploys the refreshed DictAI page.
+7. **Deferred review findings** (minor):
    - No warning when the system audio tap fails outright; warning has no link; a muted remote side looks like a permission problem.
    - Settings does not show System Audio Recording status; unwritable transcripts folder fallback is only logged.
    - Layout rule joins ".NET" and ".5" onto the previous word.
@@ -50,7 +56,7 @@ In rough priority order:
    - Missing or unreadable WAVs count as an empty successful final pass.
    - Live `finish()` has no timeout; a failed live start leaks its results task.
    - After a crash, `_live.md` and `status: live` stay until the next launch.
-7. **Housekeeping:**
+8. **Housekeeping:**
    - App version still reads 1.0 (build 2); releases are tagged by date.
    - The September 29 release notes still say macOS 14.0 (superseded, not Latest).
    - Autocomplete is a work in progress from July; its state is unknown.
@@ -70,7 +76,7 @@ codesign --force --timestamp --sign "Developer ID Application: Abdulkader Lamaa 
 gh release create v<date>-pro DictAI-Pro.dmg --title "DictAI Pro (...)" --notes-file notes.md --latest
 ```
 
-If notarization says "No Keychain password item found for profile: AC_PASSWORD", save the app specific password again with `xcrun notarytool store-credentials "AC_PASSWORD" --apple-id ak@oneshot.me --team-id QD4JZG5C85 --password ...`.
+If notarization says "No Keychain password item found for profile: AC_PASSWORD" from inside Claude Code, the sandbox is hiding the keychain: run the script from a normal shell. Only if it also fails there, save the app specific password again with `xcrun notarytool store-credentials "AC_PASSWORD" --apple-id ak@oneshot.me --team-id QD4JZG5C85 --password ...`.
 
 ## Testing
 
