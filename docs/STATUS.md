@@ -1,12 +1,19 @@
 # DictAI status
 
-Last updated: 2026-10-03. Read this first when picking the project up again.
+Last updated: 2026-10-12. Read this first when picking the project up again.
 
 ## Where things stand
 
-- **Latest release:** [v2026.10.02.2-pro](https://github.com/XDigit-ai/DictAI/releases/tag/v2026.10.02.2-pro), signed with the Developer ID and notarized. The website and README download links use `releases/latest/download/DictAI-Pro.dmg`, so they always serve the newest release.
-- **Installed:** the same build is in `/Applications/DictAI.app` on AK's Mac Studio.
-- **Tests:** 92 unit tests pass. Opt-in suites (real speech engines, audio hardware) are skipped by default; see "Testing" below.
+- **Latest release:** [v2026.10.11-pro](https://github.com/XDigit-ai/DictAI/releases/tag/v2026.10.11-pro), signed with the Developer ID and notarized. The website and README download links use `releases/latest/download/DictAI-Pro.dmg`, so they always serve the newest release.
+- **Installed:** the same build is in `/Applications/DictAI.app` on AK's Mac Studio, and a copy of the DMG is in iCloud Drive, Downloads, for the other Macs.
+- **Tests:** 100 unit tests pass. Opt-in suites (real speech engines, audio hardware) are skipped by default; see "Testing" below.
+
+## Done on 2026-10-11 (PR #4)
+
+1. **Final call transcripts were truncated.** On a real call, the final transcript was full sentences for about 80 s and then fragments ("And. On the. I think."). Cause: the speech segmenter's adaptive noise floor averaged in every frame under its threshold, so during long continuous talk it climbed into the soft words and classed most of the call as silence. Replayed on the kept recording, only 167 s of 304 s of speech reached Whisper. The floor is now the quietest frame within 3 s either side (`SpeechSegmenter.windowMinimum`); the same recording now sends 300 s. Regression test: `longSpeechWithSoftWordsIsKeptWhole`.
+2. **Paragraphs in long turns.** `Paragraphing` in `TranscriptTypes.swift`: a new paragraph at a pause of 1.5 s or more, or at a sentence end once a paragraph passes 600 characters. Applied in `FinalPass.mergeIntoTurns` (segment end times now kept in `TimedText`) and, length rule only, in the live file.
+3. **Notes after a call.** `CallTranscript/CallNotes.swift`. Menu bar: *Make Notes from Last Call*. Settings, Calls: *Make notes after each call* (runs after the final transcript is written). The transcript is sent to the Enhancement LLM in 6,000 character chunks at turn boundaries, each summarised with `LLMPrompts.callNotes`, then merged with `LLMPrompts.callNotesMerge`. Output: `<transcript name> Notes.md` next to the transcript. The transcript file is never changed. Ollama requests now set `num_ctx` to 8192. `AIEnhancementService.generate` sends text without the voice direction regexes; `ensureConfigured()` re-checks the Ollama connection because the app starts Ollama after the launch time check.
+4. **First real call tests happened** (item 1 of the old Next list, partly). Two calls on 2026-10-11 via *Transcribe Call* with the app not detected ("app: Unknown"). The truncation above came out of them. Headphones, speakers, AirPods mid call, force quit, FaceTime, Firefox and Arc are still untested.
 
 ## Done in the 2026-09-29 to 2026-10-03 sessions
 
@@ -24,16 +31,17 @@ Last updated: 2026-10-03. Read this first when picking the project up again.
 
 In rough priority order:
 
-1. **Real call check, by hand** (never done on hardware):
+1. **Real call check, by hand** (only manual starts tested so far, see above):
    - Zoom or Meet with headphones: prompt appears, `tail -f ~/Documents/DictAI\ Transcripts/_live.md` shows lines within about 2 s, file ends `status: final`.
    - Same call on speakers: You channel does not repeat Them (echo cancellation); note whether other apps get quieter.
    - Connect AirPods mid call, and a call fully on AirPods. Capture does not handle audio route changes yet (open review finding).
    - Force quit mid call, relaunch: final transcript appears.
    - FaceTime, Firefox and Arc calls: check detection and that the Them channel is not silent.
-2. **Language setting is ignored.** Settings has a Language picker, but `WhisperContext.transcribe` hardcodes `"en"` (`Talk/Talk/Whisper/WhisperContext.swift`, `transcribe(samples:)`). Fix it, then the website can mention Arabic and other languages again.
-3. **Email registration.** On first setup DictAI sends the email (and optional name) to the Supabase project in `Services/UserRegistrationService.swift`. The website now says so. Confirm this is still wanted.
-4. **Website PR:** merge it in `xd-website-v2` so Vercel deploys the refreshed DictAI page.
-5. **Deferred review findings** (minor):
+2. **Notes, follow ups.** Untested on a long call that needs several chunks and a merge. The Settings "Connected to Ollama" check only pings the server; on 2026-10-11 Ollama had no models at all and notes failed with `model 'qwen2.5:3b' not found` until `qwen2.5:3b` was pulled. Settings should check the selected model exists and offer the download. Notes are English only and use a fixed prompt.
+3. **Language setting is ignored.** Settings has a Language picker, but `WhisperContext.transcribe` hardcodes `"en"` (`Talk/Talk/Whisper/WhisperContext.swift`, `transcribe(samples:)`). Fix it, then the website can mention Arabic and other languages again.
+4. **Email registration.** On first setup DictAI sends the email (and optional name) to the Supabase project in `Services/UserRegistrationService.swift`. The website now says so. Confirm this is still wanted.
+5. **Website PR:** merge it in `xd-website-v2` so Vercel deploys the refreshed DictAI page.
+6. **Deferred review findings** (minor):
    - No warning when the system audio tap fails outright; warning has no link; a muted remote side looks like a permission problem.
    - Settings does not show System Audio Recording status; unwritable transcripts folder fallback is only logged.
    - Layout rule joins ".NET" and ".5" onto the previous word.
@@ -42,7 +50,7 @@ In rough priority order:
    - Missing or unreadable WAVs count as an empty successful final pass.
    - Live `finish()` has no timeout; a failed live start leaks its results task.
    - After a crash, `_live.md` and `status: live` stay until the next launch.
-6. **Housekeeping:**
+7. **Housekeeping:**
    - App version still reads 1.0 (build 2); releases are tagged by date.
    - The September 29 release notes still say macOS 14.0 (superseded, not Latest).
    - Autocomplete is a work in progress from July; its state is unknown.
