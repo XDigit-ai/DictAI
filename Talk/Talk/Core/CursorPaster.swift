@@ -27,6 +27,7 @@ class CursorPaster {
         // Set new text to clipboard
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        let ourChangeCount = pasteboard.changeCount
         recordDictationInHistory(text)
 
         // In sandboxed mode or without accessibility, just copy to clipboard and notify
@@ -41,9 +42,12 @@ class CursorPaster {
         // Simulate Cmd+V
         pasteViaCmdV()
 
-        // Restore original clipboard after a longer delay
+        // Restore original clipboard after a longer delay, unless something else was
+        // copied in the meantime (for example copy on select in a terminal): that copy
+        // must not be overwritten.
         if preserveClipboard && !savedItems.isEmpty {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                guard NSPasteboard.general.changeCount == ourChangeCount else { return }
                 restoreClipboard(savedItems)
             }
         }
