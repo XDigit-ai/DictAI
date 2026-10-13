@@ -57,9 +57,9 @@ actor WhisperContext {
 
     // MARK: - Transcription
 
-    func transcribe(samples: [Float]) -> Bool {
+    func transcribe(samples: [Float], initialPrompt: String? = nil) -> Bool {
         #if canImport(whisper)
-        guard let ctx = context else { return false }
+        guard let ctx = context, !samples.isEmpty else { return false }
 
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
 
@@ -76,9 +76,6 @@ actor WhisperContext {
         params.temperature = Float(0.0)
         params.temperature_inc = Float(0.2)
 
-        // Language settings
-        let langStr = strdup("en")
-        params.language = UnsafePointer(langStr)
         params.translate = false
 
         // Single segment for faster processing
@@ -88,8 +85,16 @@ actor WhisperContext {
         params.suppress_blank = true
         params.suppress_nst = true
 
-        return samples.withUnsafeBufferPointer { buffer in
-            whisper_full(ctx, params, buffer.baseAddress, Int32(buffer.count)) == 0
+        // Earlier text of the same take, so names and casing carry across live clips.
+        let prompt = initialPrompt ?? ""
+        return "en".withCString { lang in
+            prompt.withCString { promptPtr in
+                params.language = lang
+                params.initial_prompt = prompt.isEmpty ? nil : promptPtr
+                return samples.withUnsafeBufferPointer { buffer in
+                    whisper_full(ctx, params, buffer.baseAddress, Int32(buffer.count)) == 0
+                }
+            }
         }
         #else
         // Stub for development
@@ -99,8 +104,8 @@ actor WhisperContext {
 
     /// Transcribes and reads the text in one actor call, so a call final pass queued on
     /// this actor cannot run in between and replace the results.
-    func transcribeText(samples: [Float]) -> String? {
-        guard transcribe(samples: samples) else { return nil }
+    func transcribeText(samples: [Float], initialPrompt: String? = nil) -> String? {
+        guard transcribe(samples: samples, initialPrompt: initialPrompt) else { return nil }
         return getTranscription()
     }
 

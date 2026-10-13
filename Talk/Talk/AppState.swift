@@ -58,6 +58,14 @@ class AppState: ObservableObject {
     @AppStorage("processingMode") var processingMode: ProcessingMode = .simple
     @AppStorage("recordingMode") var recordingMode: RecordingMode = .pushToTalk
     @AppStorage("playSoundFeedback") var playSoundFeedback: Bool = true
+    /// Transcribe clips while recording and show the text in the overlay.
+    @AppStorage("liveDictation") var liveDictation: Bool = true
+    /// Target clip length in seconds for live dictation.
+    @AppStorage("liveClipSeconds") var liveClipSeconds: Double = 7
+
+    /// Text transcribed so far in the current take (live dictation).
+    @Published var liveText = ""
+    private var session: DictationSession?
     @AppStorage("preserveClipboard") var preserveClipboard: Bool = true
     @AppStorage("autoAddTrailingSpace") var autoAddTrailingSpace: Bool = true
     @AppStorage("launchAtLogin") var launchAtLogin: Bool = false
@@ -101,7 +109,14 @@ class AppState: ObservableObject {
 
         isRecording = true
         recordingDuration = 0
+        liveText = ""
         currentSessionMode = mode  // Store the mode for this recording session
+
+        let session = DictationSession(live: liveDictation, clipSeconds: liveClipSeconds) { samples, prompt in
+            try await WhisperState.shared.transcribeText(samples: samples, prompt: prompt)
+        }
+        session.onText = { [weak self] text in self?.liveText = text }
+        self.session = session
 
         // Start duration timer
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
@@ -116,10 +131,23 @@ class AppState: ObservableObject {
         }
 
         // Start audio recording
-        Recorder.shared.startRecording { [weak self] level in
-            Task { @MainActor [weak self] in
-                self?.audioLevel = level
+        do {
+            try Recorder.shared.startRecording { [weak self] samples, level in
+                Task { @MainActor [weak self] in
+                    guard let self, self.session === session else { return }
+                    self.audioLevel = level
+                    session.append(samples)
+                }
             }
+        } catch {
+            debugLog("startRecording FAILED: \(error)")
+            isRecording = false
+            recordingTimer?.invalidate()
+            recordingTimer = nil
+            self.session = nil
+            lastError = "Recording failed: \(error.localizedDescription)"
+            if playSoundFeedback { SoundManager.shared.playErrorSound() }
+            return
         }
 
         // Show recording panel
@@ -143,13 +171,13 @@ class AppState: ObservableObject {
             SoundManager.shared.playStopSound()
         }
 
-        // Stop audio recording and get audio data
-        guard let audioURL = Recorder.shared.stopRecording() else {
+        Recorder.shared.stopRecording()
+        guard let session else {
             processingStatus = "Recording failed"
-            debugLog("stopRecording FAILED - no audio URL returned")
+            debugLog("stopRecording FAILED - no session")
             return
         }
-        debugLog("stopRecording got audioURL=\(audioURL.lastPathComponent)")
+        self.session = nil
 
         // Hide recording panel
         if let appDelegate = AppDelegate.shared {
@@ -158,7 +186,7 @@ class AppState: ObservableObject {
 
         // Process the audio
         Task {
-            await processAudio(from: audioURL)
+            await process(session)
         }
     }
 
@@ -170,6 +198,9 @@ class AppState: ObservableObject {
         recordingTimer = nil
 
         Recorder.shared.cancelRecording()
+        session?.cancel()
+        session = nil
+        liveText = ""
 
         if let appDelegate = AppDelegate.shared {
             appDelegate.hideRecordingPanel()
@@ -178,21 +209,18 @@ class AppState: ObservableObject {
 
     // MARK: - Audio Processing
 
-    private func processAudio(from url: URL) async {
+    private func process(_ session: DictationSession) async {
         isProcessing = true
         processingStatus = "Transcribing..."
 
         // Use session mode if set (from hotkey), otherwise use default setting
         let activeMode = currentSessionMode ?? processingMode
-        debugLog("processAudio start: mode=\(activeMode.rawValue) modelLoaded=\(WhisperState.shared.isModelLoaded) url=\(url.lastPathComponent)")
-
-        // Check file exists and size
-        let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
-        debugLog("processAudio audioFile size=\(fileSize) bytes")
+        debugLog("processAudio start: mode=\(activeMode.rawValue) modelLoaded=\(WhisperState.shared.isModelLoaded) live=\(session.live)")
 
         do {
-            // Transcribe with Whisper
-            let transcription = try await WhisperState.shared.transcribe(audioURL: url)
+            // Transcribe with Whisper: in live mode only the last clip is left to do.
+            let transcription = try await session.finish()
+            liveText = ""
             lastTranscription = transcription
             debugLog("processAudio transcription='\(transcription.prefix(100))'")
 
@@ -265,8 +293,7 @@ class AppState: ObservableObject {
             }
         }
 
-        // Cleanup audio file
-        try? FileManager.default.removeItem(at: url)
+        liveText = ""
     }
 
     // MARK: - Panel Helpers

@@ -9,9 +9,12 @@ struct MiniRecorderView: View {
 
         VStack(spacing: 12) {
             recordingView(activeMode: activeMode)
+            if appState.liveDictation {
+                liveTextView
+            }
         }
         .padding(16)
-        .frame(width: 280, height: 100)
+        .frame(width: 280, height: Self.height(live: appState.liveDictation))
         .background(.ultraThinMaterial)
         .cornerRadius(16)
         .shadow(radius: 10)
@@ -63,6 +66,32 @@ struct MiniRecorderView: View {
                 .keyboardShortcut(.escape, modifiers: [])
             }
         }
+    }
+
+    /// Panel height for the overlay, with or without the live text area.
+    static func height(live: Bool) -> CGFloat { live ? 230 : 100 }
+
+    // MARK: - Live text
+
+    /// What Whisper has transcribed so far, scrolled to the latest clip.
+    private var liveTextView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                Text(appState.liveText.isEmpty ? "Listening…" : appState.liveText)
+                    .font(.callout)
+                    .foregroundStyle(appState.liveText.isEmpty ? .secondary : .primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                Color.clear.frame(height: 1).id("end")
+            }
+            .onChange(of: appState.liveText) { _, _ in
+                withAnimation { proxy.scrollTo("end", anchor: .bottom) }
+            }
+        }
+        .frame(maxHeight: .infinity)
+        .padding(8)
+        .background(.black.opacity(0.08))
+        .cornerRadius(8)
     }
 
     // MARK: - Helpers
