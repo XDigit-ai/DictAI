@@ -40,6 +40,14 @@ enum RecordingMode: String, CaseIterable, Codable {
     }
 }
 
+// MARK: - Live dictation output
+enum LiveOutput: String, CaseIterable, Codable {
+    /// Each clip is pasted into the app at the cursor as soon as it is transcribed.
+    case cursor = "Cursor"
+    /// The text so far is shown in the recording overlay; pasted once on release.
+    case overlay = "Overlay"
+}
+
 // MARK: - App State
 @MainActor
 class AppState: ObservableObject {
@@ -62,6 +70,16 @@ class AppState: ObservableObject {
     @AppStorage("liveDictation") var liveDictation: Bool = true
     /// Target clip length in seconds for live dictation.
     @AppStorage("liveClipSeconds") var liveClipSeconds: Double = 7
+    /// Where live clips go. At the cursor, Simple cleanup is applied per clip.
+    @AppStorage("liveDictationOutput") var liveDictationOutput: LiveOutput = .cursor
+
+    /// True when the overlay should show the text so far.
+    var showsLiveText: Bool { liveDictation && liveDictationOutput == .overlay }
+    /// True when clips are pasted as they arrive.
+    var typesLive: Bool { liveDictation && liveDictationOutput == .cursor }
+    /// Clips pasted so far in the current take (live typing).
+    private var livePastes = 0
+    private var livePasteEndedWithSpace = false
 
     /// Text transcribed so far in the current take (live dictation).
     @Published var liveText = ""
@@ -116,6 +134,11 @@ class AppState: ObservableObject {
             try await WhisperState.shared.transcribeText(samples: samples, prompt: prompt)
         }
         session.onText = { [weak self] text in self?.liveText = text }
+        if typesLive {
+            livePastes = 0
+            livePasteEndedWithSpace = false
+            session.onClip = { [weak self] piece, isLast in self?.pasteLive(piece, isLast: isLast) }
+        }
         self.session = session
 
         // Start duration timer
@@ -207,6 +230,21 @@ class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Live typing
+
+    /// Pastes one clip at the cursor. Clips after the first get a leading space; the last
+    /// one gets the trailing space setting.
+    private func pasteLive(_ piece: String, isLast: Bool) {
+        let cleaned = SimpleCleanupProcessor.shared.process(piece)
+        guard !cleaned.isEmpty else { return }
+        var text = (livePastes > 0 ? " " : "") + cleaned
+        if isLast, autoAddTrailingSpace { text += " " }
+        CursorPaster.paste(text, preserveClipboard: preserveClipboard)
+        livePastes += 1
+        livePasteEndedWithSpace = text.hasSuffix(" ")
+        debugLog("pasteLive clip \(livePastes) last=\(isLast) len=\(text.count)")
+    }
+
     // MARK: - Audio Processing
 
     private func process(_ session: DictationSession) async {
@@ -223,6 +261,19 @@ class AppState: ObservableObject {
             liveText = ""
             lastTranscription = transcription
             debugLog("processAudio transcription='\(transcription.prefix(100))'")
+
+            // Live typing: every clip is already at the cursor.
+            if session.live, typesLive {
+                if livePastes > 0, autoAddTrailingSpace, !livePasteEndedWithSpace {
+                    CursorPaster.paste(" ", preserveClipboard: preserveClipboard)   // the last clip was silent
+                }
+                lastProcessedText = SimpleCleanupProcessor.shared.process(transcription)
+                processingStatus = ""
+                isProcessing = false
+                currentSessionMode = nil
+                if playSoundFeedback, livePastes > 0 { SoundManager.shared.playSuccessSound() }
+                return
+            }
 
             // Apply processing based on mode
             let processedText: String

@@ -13,7 +13,10 @@ final class DictationSession {
     static let minimumSamples = DictationClipper.sampleRate
 
     let live: Bool
+    /// The text so far, after each clip.
     var onText: ((String) -> Void)?
+    /// Each clip's text as it arrives, and whether it is the last one of the take.
+    var onClip: ((String, _ isLast: Bool) -> Void)?
     private(set) var texts: [String] = []
     var text: String { texts.joined(separator: " ") }
 
@@ -24,6 +27,7 @@ final class DictationSession {
     private var worker: Task<Void, Never>?
     private var failure: Error?
     private var cancelled = false
+    private var finishing = false
 
     init(live: Bool, clipSeconds: Double, transcribe: @escaping Transcribe) {
         self.live = live
@@ -43,6 +47,7 @@ final class DictationSession {
     /// The full text. Waits for clips still being transcribed.
     func finish() async throws -> String {
         if live {
+            finishing = true
             if let clip = clipper.flush() { enqueue(clip) }
             while let worker { await worker.value }
             if let failure { throw failure }
@@ -73,6 +78,7 @@ final class DictationSession {
                 if !piece.isEmpty, !cancelled {
                     texts.append(piece)
                     onText?(text)
+                    onClip?(piece, finishing && pending.isEmpty)
                 }
             } catch {
                 if !cancelled { failure = error }

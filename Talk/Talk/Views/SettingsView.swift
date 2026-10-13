@@ -187,7 +187,12 @@ struct TranscriptionSettingsTab: View {
             }
 
             Section("Live text") {
-                Toggle("Show text while recording", isOn: $appState.liveDictation)
+                Toggle("Transcribe while recording", isOn: $appState.liveDictation)
+                Picker("Text goes to", selection: $appState.liveDictationOutput) {
+                    Text("The app at the cursor").tag(LiveOutput.cursor)
+                    Text("DictAI overlay").tag(LiveOutput.overlay)
+                }
+                .disabled(!appState.liveDictation)
                 Picker("Clip length", selection: $appState.liveClipSeconds) {
                     Text("5 s").tag(5.0)
                     Text("7 s").tag(7.0)
@@ -195,7 +200,7 @@ struct TranscriptionSettingsTab: View {
                 }
                 .pickerStyle(.segmented)
                 .disabled(!appState.liveDictation)
-                Text("Audio goes to Whisper in clips while you talk, each cut at a pause near the clip length. Shorter clips show text sooner; longer clips give Whisper more context per clip. The last clip is all that is left to do when you let go.")
+                Text("Audio goes to Whisper in clips while you talk, each cut at a pause near the clip length. Shorter clips show text sooner; longer clips give Whisper more context per clip. At the cursor, each clip is typed as soon as it is ready with Simple cleanup, so Advanced enhancement is not applied. In the overlay, the text is pasted once when you let go.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -27,13 +27,29 @@ struct DictationSessionTests {
         let calls = Calls()
         let s = session(live: true, calls: calls)
         var seen: [String] = []
+        var clips: [(String, Bool)] = []
         s.onText = { seen.append($0) }
+        s.onClip = { clips.append(($0, $1)) }
         // 12 s of speech: two 5 s clips while talking, 2 s left for finish.
-        for start in stride(from: 0, to: 12, by: 1) { s.append(tone(1, amplitude: 0.1)); _ = start }
+        for _ in 0..<12 { s.append(tone(1, amplitude: 0.1)) }
         let text = try await s.finish()
         #expect(text == "clip 1 clip 2 clip 3")
         #expect(calls.prompts == [nil, "clip 1", "clip 1 clip 2"])
         #expect(seen == ["clip 1", "clip 1 clip 2", "clip 1 clip 2 clip 3"])
+        #expect(clips.map(\.0) == ["clip 1", "clip 2", "clip 3"])
+        #expect(clips.map(\.1) == [false, false, true])
+    }
+
+    @Test func aSilentTailMeansNoClipIsMarkedLast() async throws {
+        let calls = Calls()
+        let s = session(live: true, calls: calls)
+        var clips: [(String, Bool)] = []
+        s.onClip = { clips.append(($0, $1)) }
+        s.append(tone(5, amplitude: 0.1))
+        try await Task.sleep(for: .milliseconds(100))          // the clip is done before finish
+        s.append(silence(2))
+        _ = try await s.finish()
+        #expect(clips.map(\.1) == [false])
     }
 
     @Test func silentClipsAreSkippedAndShortOnesPadded() async throws {

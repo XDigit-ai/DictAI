@@ -9,12 +9,12 @@ struct MiniRecorderView: View {
 
         VStack(spacing: 12) {
             recordingView(activeMode: activeMode)
-            if appState.liveDictation {
+            if appState.showsLiveText {
                 liveTextView
             }
         }
         .padding(16)
-        .frame(width: 280, height: Self.height(live: appState.liveDictation))
+        .frame(width: 280, height: Self.height(live: appState.showsLiveText))
         .background(.ultraThinMaterial)
         .cornerRadius(16)
         .shadow(radius: 10)
